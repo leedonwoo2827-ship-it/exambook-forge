@@ -69,6 +69,20 @@ def to_plain(text: str) -> str:
     return s.strip()
 
 
+def to_speech(text: str) -> str:
+    """낭독(TTS) 필드용. to_plain 후 괄호 (…) 안 부가설명을 '읽지 않도록' 제거.
+    (자막/화면 필드에는 적용하지 않음 → 괄호 유지)"""
+    s = to_plain(text)
+    prev = None
+    while prev != s:  # 중첩 괄호까지 제거
+        prev = s
+        s = re.sub(r"\s*\([^()]*\)", "", s)      # 반각 ()
+        s = re.sub(r"\s*（[^（）]*）", "", s)      # 전각 （）
+    s = re.sub(r"[ \t]{2,}", " ", s)
+    s = re.sub(r"\s+([,.!?、。])", r"\1", s)
+    return s.strip()
+
+
 def asset_names(q: dict, qid: str) -> list[str]:
     """문항이 참조하는 SVG 파일명 집합(순서 유지, 중복 제거).
     assets[].name + 레거시 svg(→{id}.svg) + 본문 ](assets/NAME) 참조."""
@@ -220,18 +234,18 @@ def lesson_problem_block(q: dict, qid: str, names: list[str]) -> dict:
         "answer": circled(q["answer_index"]),             # 해설 다중 페이지에도 정답 배너 유지용
         "answer_index": q["answer_index"],
         "explanation": to_plain(q["explanation"]),
-        # 낭독체(소리나는 대로). #3는 "정답은 N번" 자동 삽입 안 함 →
-        # 음성에 정답 안내를 넣으려면 explanation_speech를 "정답은 N번입니다. …"로 시작하게 집필.
-        "explanation_speech": to_plain(q.get("explanation_speech") or q["explanation"]),
+        # 낭독체(소리나는 대로). 괄호 (…) 부가설명은 읽지 않도록 to_speech가 제거(자막은 유지).
+        # #3는 "정답은 N번" 자동 삽입 안 함 → 정답 안내는 "정답은 N번입니다. …"로 시작하게 집필.
+        "explanation_speech": to_speech(q.get("explanation_speech") or q["explanation"]),
         "difficulty": q["difficulty"],
         "tags": q.get("tags", []),
     })
     if names:  # 참조 SVG 파일명(도형은 04/assets 에 동반 복사됨)
         block["assets"] = names
     if q.get("narration_question"):
-        block["narration_question"] = to_plain(q["narration_question"])
+        block["narration_question"] = to_speech(q["narration_question"])
     if q.get("narration_answer"):
-        block["narration_answer"] = to_plain(q["narration_answer"])
+        block["narration_answer"] = to_speech(q["narration_answer"])
     return block
 
 

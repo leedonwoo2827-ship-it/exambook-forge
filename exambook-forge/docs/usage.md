@@ -27,6 +27,15 @@ python "<PLUGIN>/scripts/build.py" --book "<book>"
 ```
 `<PLUGIN>` = 설치된 플러그인 루트(스킬에서는 `${CLAUDE_PLUGIN_ROOT}`).
 
+## 긴 영상 분할 (split.py)
+한 회차(≈50문항)가 한 편으로 너무 길면(예: 60분) 여러 편으로 쪼갠다. 문항을 균등 분할하고
+각 편에 과목 섹션 헤더를 유지, 루트 필드를 복사한다.
+```
+python "<PLUGIN>/scripts/split.py" --input "<book>/04/lesson_m01.json" --parts 5 --prefix 01
+#   → 04/01-1.json ... 04/01-5.json  (각 ~10문항)
+#   --outdir 로 출력 폴더 지정, --dry-run 으로 미리보기
+```
+
 ## 영상 툴 연동 (compy-ui-mujejip)
 1. `04/lesson_mNN.json`을 영상 툴 `[1 대본]` 탭에 로드 → **[🧩 레슨 저장]**.
 2. `include_lecture:false`이므로 문제→보기까지의 **문제 전용 영상**이 만들어진다.
