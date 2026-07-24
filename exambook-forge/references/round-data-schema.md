@@ -1,0 +1,75 @@
+# 회차 데이터 스키마 (rounds/mNN.json)
+
+스킬이 "집필"하고 `build.py`가 소비하는 **단일 진실 원천**. 한 회차 = JSON 파일 1개.
+여기서 MD·lesson JSON·index·stats가 모두 결정적으로 파생된다.
+
+## 파일 위치
+`rounds/m01.json`, `rounds/m02.json`, `rounds/m03.json` ...
+
+## 구조
+
+```json
+{
+  "round_code": "m01",
+  "round": 1,
+  "round_label": "자사 모의고사 01회",
+  "subject_default": "SQLD",
+  "theme": "sqld",
+  "questions": [
+    {
+      "question_no": 1,
+      "subject": "데이터 모델링의 이해",
+      "subject_no": 1,
+      "difficulty": "중",
+      "tags": ["분산 데이터베이스", "가용성", "보안"],
+      "derived_from": "01-01",
+      "question": "문제 지시문 (마크다운)",
+      "passage": null,
+      "choices": ["선지1", "선지2", "선지3", "선지4"],
+      "answer_index": 2,
+      "explanation": "해설 (마크다운)",
+      "explanation_speech": "TTS 낭독용 해설(선택; 없으면 explanation에서 파생)",
+      "svg": null
+    }
+  ]
+}
+```
+
+## 문항 필드
+
+| 필드 | 필수 | 설명 |
+|---|---|---|
+| `question_no` | ✅ | 회차 내 번호 1~50 |
+| `subject` | ✅ | 과목명 |
+| `subject_no` | ✅ | 과목 번호(1/2) |
+| `difficulty` | ✅ | `상`/`중`/`하` |
+| `tags` | ✅ | 키워드 배열(2~4개 권장) |
+| `derived_from` | ✅ | 원 개념 근거 문항 id (검수 추적) |
+| `question` | ✅ | 문제 지시문. 지문이 문제와 한 덩어리면 여기에 포함 가능 |
+| `passage` | ❌ | `## 지문` 내용(표/SQL/그림). 없으면 `null` → 지문 섹션 생략 |
+| `choices` | ✅ | 정확히 **4개** 문자열(원문자 없이 내용만; build가 ①②③④ 부여) |
+| `answer_index` | ✅ | 0-based 정답 인덱스(0~3) |
+| `explanation` | ✅ | 해설 |
+| `explanation_speech` | ❌ | 음성 낭독본. 없으면 build가 explanation을 정리해 사용 |
+| `assets` | ❌ | **SVG 자산 배열** `[{"name":"m01-09-erd","svg":"<svg ...>"}]`. build가 `02/assets/NAME.svg`로 저장. **문제/지문/해설 어디서든** `![설명](assets/NAME.svg)`로 참조. 개수 제한 없음 — **많이 쓸수록 좋다**(개념 시각화) |
+| `svg` | ❌ | (레거시·단축) 인라인 SVG 문자열 1개. `02/assets/{id}.svg`로 저장되고 **지문에 자동 첨부**. 여러 개/해설 삽입은 `assets` 사용 |
+
+> **SVG는 그림 의존 문항 전용이 아니다.** 조인 벤다이어그램, 계층 트리, 정규화 단계, 윈도우 프레임,
+> SQL 실행순서 흐름도, 집합연산 다이어그램 등 **해설의 개념 시각화**에 적극 사용한다.
+> 참조는 마크다운(`![..](assets/NAME.svg)`)을 `question`/`passage`/`explanation` 어디에든 넣으면 된다.
+
+## build.py 가 자동 파생하는 것 (집필 시 넣지 말 것)
+- `id` = `{round_code}-{question_no:02d}`
+- `answer` = `["①","②","③","④"][answer_index]`
+- `has_sql` / `has_table` / `has_figure` = question+passage+svg 내용에서 감지
+- frontmatter의 `authored_by/verified/reviewed/needs_review`
+- 산출 경로: 문제 MD → `02/{id}.md`, 영상 대본 → `04/lesson_{round_code}.json`, SVG → `02/assets/`
+- `02/_index.json`, `02/difficulty_stats.json` 재집계
+- lesson JSON의 `choices`에 원문자 접두(`① ...`)
+
+## 회차 구성 제약(품질 규칙)
+- 과목 비율: `데이터 모델링의 이해` 10 + `SQL 기본 및 활용` 40 = 50 (SQLD 실전 비율 유지)
+- 난이도 분포: 상 12~16 / 중 24~28 / 하 8~10 (원본 상15·중26·하9 근방, 회차마다 소폭 변주)
+- **출제 순서**: 원본 개념 순서를 그대로 쓰지 말 것 — `derived_from` 순서를 섞어 배치
+- 정답 분포: ①②③④가 한쪽에 쏠리지 않게 (각 8~17개 범위)
+- 자세한 집필 규칙은 `authoring-rules.md`, 개념 풀은 `sqld-syllabus.md` 참고

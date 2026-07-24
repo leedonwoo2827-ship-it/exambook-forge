@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# 생성 산출물은 이 레포가 아니라 ocr-output-*/02, /03 에 쓰인다.
+# 로컬 테스트로 레포 안에 산출한 경우만 무시:
+/_out/
+/rounds/*.local.json

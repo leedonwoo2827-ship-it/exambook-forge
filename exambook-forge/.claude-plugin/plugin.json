@@ -1,0 +1,24 @@
+{
+  "name": "exambook-forge",
+  "version": "0.1.0",
+  "description": "기출 1권(OCR 구조화 MD) → 자사 N회차 모의고사 재집필 + 문제 전용 영상 lesson JSON + 요약노트(MD/HTML) 생성 파이프라인. 저작권 안전 재집필(개념·난이도 유지, 표면 전면 재작성, 출제 순서 변경), SVG 도형화, compy-ui-mujejip 영상 툴 연동.",
+  "author": {
+    "name": "leedonwoo2827-ship-it"
+  },
+  "keywords": ["exam", "mock-exam", "sqld", "cbt", "video-lesson", "summary-note", "svg", "pipeline"],
+  "metadata": {
+    "layer": "domain",
+    "domain": "자격시험 모의고사 집필·영상·요약 파이프라인",
+    "origin": "ocr-output 파이프라인 규약 (01 OCR → 02 집필 → 03 요약)",
+    "inputs": "ocr-output-*/01/ : 문항별 구조화 MD(YAML frontmatter + 문제/지문/보기/해설)",
+    "outputs": "02/ : 회차별 모의고사 문제 MD · 03/ : 요약원고(요약노트) MD+HTML · 04/ : 문제 영상 대본 lesson_*.json(include_lecture:false)",
+    "downstream": "compy-ui-mujejip (lesson JSON → 슬라이드/자막/대본 → MP4)",
+    "principles": [
+      "개념·난이도·키워드는 실전 수준 유지, 표면(테이블명/값/SQL/보기/오답)은 전면 재작성",
+      "출제 순서를 원본과 반드시 변경 (과목 비율은 유지)",
+      "그림 의존 문항은 표/텍스트 + 인라인 SVG로 재설계",
+      "각 문항에 derived_from(원 개념 근거) 기록으로 검수 추적성 확보"
+    ],
+    "scaling": "1회분→3회차 프로토타입 → 7회분→20회차 확장. 정보처리기사·컴퓨터활용능력 등 타 과목으로 subject/theme 교체 확장."
+  }
+}
