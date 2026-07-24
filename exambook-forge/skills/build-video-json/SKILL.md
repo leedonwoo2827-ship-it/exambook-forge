@@ -27,6 +27,10 @@ metadata:
    - **`choices`는 원문자(①②③④) 없이 내용만** — 렌더러가 번호 부여(중복 방지).
    - **보이는 텍스트 ↔ 들리는 텍스트**: `question`/`explanation`은 원문 표기(시각, 1.2%),
      `explanation_speech`는 소리나는 대로 발음 표기(시깍, "일 점 이 퍼센트", "커넥트 바이") — #2가 집필.
+   - **구조화 필드**: `question`엔 질문만. 지문→`passage`, 표→`table:{columns,rows}`, SQL→`sql`(코드 그대로),
+     아주 긴 보기→`hide_choices:true`(화면 생략·TTS 낭독). `answer`/`answer_index`는 유지(정답 배너).
+   - **정답 리드**: #3는 "정답은 N번" 자동 삽입 안 함 → 음성에 정답 안내를 넣으려면 `explanation_speech`를
+     "정답은 N번입니다. …"로 시작하게 집필.
    - 도형: `assets[]`에 참조 SVG 파일명, 파일은 `04/assets/`에 동반 복사됨.
    - 루트 고정값: `gap_seconds`·`voice`·`speed`·`ai_reading`(회차 데이터로 오버라이드 가능).
    - **유튜브 글은 JSON에 넣지 않는다**(타임스탬프는 렌더 후 #3가 생성). `title`/`subject`/`round`/`tags`/`difficulty`만 충실히.

@@ -48,8 +48,8 @@ def detect_flags(q: dict) -> tuple[bool, bool, bool]:
             q.get("question", ""), q.get("passage") or "", q.get("explanation", ""),
         ] + list(q.get("choices", []))
     )
-    has_sql = "```sql" in blob or bool(re.search(r"\bSELECT\b|\bINSERT\b|\bCREATE\b", blob))
-    has_table = bool(re.search(r"\n\s*\|", blob)) and "---" in blob
+    has_sql = bool(q.get("sql")) or "```sql" in blob or bool(re.search(r"\bSELECT\b|\bINSERT\b|\bCREATE\b", blob))
+    has_table = bool(q.get("table")) or (bool(re.search(r"\n\s*\|", blob)) and "---" in blob)
     has_figure = bool(q.get("svg")) or bool(q.get("assets")) or "![" in blob or "<svg" in blob
     return has_figure, has_sql, has_table
 
@@ -135,17 +135,32 @@ def render_choices_md(choices: list[str]) -> str:
     return "\n".join(out)
 
 
+def render_table_md(t: dict) -> str:
+    """구조화 표 {columns, rows} → GitHub 마크다운 표."""
+    cols = [str(c) for c in t.get("columns", [])]
+    rows = t.get("rows", [])
+    out = ["| " + " | ".join(cols) + " |", "| " + " | ".join("---" for _ in cols) + " |"]
+    for r in rows:
+        out.append("| " + " | ".join(str(c) for c in r) + " |")
+    return "\n".join(out)
+
+
 def render_md(fm: dict, q: dict) -> str:
     parts = [render_frontmatter(fm), "", "## 문제", q["question"].strip(), ""]
     passage = q.get("passage")
+    table = q.get("table")
+    sql = q.get("sql")
     svg = q.get("svg")
-    if passage or svg:
+    if passage or table or sql or svg:
         parts.append("## 지문")
         if passage:
             parts.append(passage.strip())
-        if svg:
-            svg_name = svg if str(svg).endswith(".svg") else f"{fm['id']}.svg"
-            parts.append(f"\n![figure](assets/{svg_name})")
+        if table:
+            parts.append(render_table_md(table))
+        if sql:
+            parts.append("```sql\n" + str(sql).strip() + "\n```")
+        if svg and str(svg).strip().startswith("<svg"):
+            parts.append(f"\n![figure](assets/{fm['id']}.svg)")
         parts.append("")
     parts.append("## 보기")
     parts.append(render_choices_md(q["choices"]))
@@ -184,24 +199,33 @@ def build_frontmatter(round_meta: dict, q: dict) -> dict:
 
 
 def lesson_problem_block(q: dict, qid: str, names: list[str]) -> dict:
-    # 지문을 문제에 합치되, lesson 필드는 모두 순수 텍스트(마크다운 제거).
-    question = q["question"].strip()
-    if q.get("passage"):
-        question = question + "\n\n" + q["passage"].strip()
+    # question 엔 질문만. 지문(passage)·표(table)·코드(sql)는 구조화 필드로 분리 → 렌더가 또렷하게.
+    # 텍스트 필드는 순수 텍스트(마크다운 제거). sql/table 은 원형 유지.
     block = {
         "number": q["question_no"],
         "type": "multiple_choice",
-        "question": to_plain(question),
-        # choices는 원문자 접두 없이 순수 텍스트(렌더러가 번호 부여 → ①① 중복 방지)
-        "choices": [to_plain(str(c)) for c in q["choices"]],
-        "answer": circled(q["answer_index"]),
+        "question": to_plain(q["question"]),
+    }
+    if q.get("passage"):
+        block["passage"] = to_plain(q["passage"])       # 긴 지문 → 별도 '지문 씬'
+    if q.get("sql"):
+        block["sql"] = str(q["sql"]).strip()             # 코드 문자열 그대로 → 모노스페이스 코드카드
+    if q.get("table"):
+        block["table"] = q["table"]                       # {columns, rows} 구조 그대로
+    # choices는 원문자 접두 없이 순수 텍스트(렌더러가 번호 부여 → ①① 중복 방지)
+    block["choices"] = [to_plain(str(c)) for c in q["choices"]]
+    if q.get("hide_choices") is not None:
+        block["hide_choices"] = bool(q["hide_choices"])  # true=문제 화면 보기 생략, TTS는 낭독
+    block.update({
+        "answer": circled(q["answer_index"]),             # 해설 다중 페이지에도 정답 배너 유지용
         "answer_index": q["answer_index"],
         "explanation": to_plain(q["explanation"]),
-        # 낭독체(소리나는 대로): 집필 시 explanation_speech 제공 권장. 없으면 explanation을 순수화.
+        # 낭독체(소리나는 대로). #3는 "정답은 N번" 자동 삽입 안 함 →
+        # 음성에 정답 안내를 넣으려면 explanation_speech를 "정답은 N번입니다. …"로 시작하게 집필.
         "explanation_speech": to_plain(q.get("explanation_speech") or q["explanation"]),
         "difficulty": q["difficulty"],
         "tags": q.get("tags", []),
-    }
+    })
     if names:  # 참조 SVG 파일명(도형은 04/assets 에 동반 복사됨)
         block["assets"] = names
     if q.get("narration_question"):

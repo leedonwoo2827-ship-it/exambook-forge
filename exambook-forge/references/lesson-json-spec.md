@@ -65,29 +65,43 @@
   "kind": "problem",
   "number": 7,
   "type": "multiple_choice",
-  "question": "문제 지시문 + 지문(표/SQL). 순수 텍스트.",
+  "question": "질문만 (순수 텍스트) — 지문/표/SQL은 아래 구조화 필드로 분리",
+  "passage": "긴 지문 텍스트 (선택, 순수 텍스트) → 렌더가 '지문 씬'으로 분리",
+  "sql": "SELECT ... (선택, 코드 문자열 그대로 → 모노스페이스 코드카드)",
+  "table": { "columns": ["COL1"], "rows": [["1"], ["2"]] },
   "choices": ["보기1 내용", "보기2 내용", "보기3 내용", "보기4 내용"],
+  "hide_choices": false,
   "answer": "②",
   "answer_index": 1,
   "explanation": "해설 (순수 텍스트, 화면·자막용 원문 표기)",
-  "explanation_speech": "해설 낭독본 (소리나는 대로 발음 표기)",
+  "explanation_speech": "정답은 두 번입니다. …(소리나는 대로 발음 표기)",
   "difficulty": "중",
   "tags": ["집합 연산자", "UNION", "MINUS"],
   "assets": ["m01-07-venn.svg"]
 }
 ```
 
-- **`choices`는 원문자(`①②③④`) 없이 순수 텍스트만** — 렌더러가 번호를 부여하므로 접두를 넣으면 `① ①` 중복.
-- **`answer`는 원문자**(`②`)이고 `answer_index`(0-based)와 일치.
-- **`assets`(선택)**: 이 문제가 참조하는 SVG 파일명 배열. 파일은 `04/assets/`에 동반 복사된다
-  (도형이 04만 봐도 "따라오게"). 도형 렌더는 #3 후속 예정, 현재는 텍스트 위주.
-- **`narration_question`/`narration_answer`(선택)**: 필요 시 문제/정답 낭독본을 따로 발음 표기로 제공.
+**구조화 필드(A — 렌더가 또렷해짐):**
+- **`question`엔 질문만.** 지문·표·SQL은 아래 필드로 분리한다.
+- **`passage`(선택)**: 긴 지문 → 렌더가 별도 '지문 씬'으로 담음. 순수 텍스트.
+- **`sql`(선택)**: 코드 문자열 그대로(펜스 없이) → 모노스페이스 코드카드.
+- **`table`(선택)**: `{"columns":[...],"rows":[[...],...]}` 구조 그대로(마크다운/이미지 대신).
+- **`hide_choices`(선택)**: `true`면 문제 화면에서 보기 생략(교재 참고형), TTS는 낭독. 생략 시 길이로 자동 판단.
+- **`choices`는 원문자(`①②③④`) 없이 순수 텍스트만** — 렌더러가 번호 부여(넣으면 `① ①` 중복).
+- **`answer`/`answer_index`는 계속 유지** — 해설이 여러 페이지여도 정답 선지 배너에 사용.
+- **`assets`(선택)**: 참조 SVG 파일명 배열. 파일은 `04/assets/`에 동반 복사(04만 봐도 따라오게).
+- **`narration_question`/`narration_answer`(선택)**: 문제/정답 낭독본을 따로 발음 표기로 제공.
+
+> ⚠️ **정답 리드(B):** `explanation_speech`를 주면 그것이 **해설 낭독 전체**가 된다.
+> #3는 "정답은 N번입니다"를 **자동으로 붙이지 않는다.** 음성에 정답 안내를 넣고 싶으면
+> `explanation_speech`를 **"정답은 N번입니다. …"** 로 시작하게 작성한다.
 
 ## MD ↔ lesson problem 매핑
 
 | MD(02, 마크다운 유지) | lesson problem(04, 순수 텍스트) |
 |---|---|
-| `## 문제` (+ `## 지문`) | `question` (마크다운 제거) |
+| `## 문제` | `question` (질문만, 마크다운 제거) |
+| `## 지문` 텍스트 / 표 / SQL | `passage` / `table` / `sql` (구조화 분리) |
 | `## 보기` ①②③④ | `choices[]` (**원문자 제거**, 내용만) |
 | frontmatter `answer` / `answer_index` | `answer` / `answer_index` |
 | `## 해설` | `explanation` (마크다운 제거) |
@@ -107,7 +121,8 @@
 - `explanation`/`explanation_speech`는 담아 두되(추후 강의형 재사용) 툴이 `false`일 때 렌더에서 제외.
 
 ## 지문(표/SQL)·도형 처리
-- 표/SQL 지문은 `question` 안에 텍스트로 함께 넣는다(코드펜스 ``` 마커는 제거, SQL 본문은 유지).
+- 표/SQL/긴 지문은 `question`에 섞지 말고 **구조화 필드 `table`/`sql`/`passage`로 분리**한다(위 A).
+  멀티 테이블 등 복잡한 경우만 `passage`에 마크다운 표로. (build가 lesson 텍스트 필드의 마크다운·펜스 자동 제거)
 - 도형은 SVG를 `assets[]`로 참조하고 파일을 `04/assets/`에 동반한다. 툴이 SVG를 직접 못 받으면
   `build.py --rasterize-svg`(또는 hwpx 흐름)로 PNG 치환(svg-conventions.md).
 
