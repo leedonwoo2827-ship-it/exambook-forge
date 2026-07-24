@@ -20,13 +20,17 @@ metadata:
 2. 빌드: `python "${CLAUDE_PLUGIN_ROOT}/scripts/build.py" --book "<book>"`
    (특정 회차만: `--round m01`, 미리보기: `--dry-run`).
    → `02/*.md`와 함께 `04/lesson_mNN.json`을 생성한다.
-3. lesson JSON 규칙 확인:
+3. lesson JSON 규칙 확인 (파이프라인 #3 핸드오프 준수):
    - `include_lecture: false` (문제 전용: 문제→보기, 정답/해설 렌더 제외).
-   - `problem` 블록에 `question`(지문 포함)·`choices`(①②③④)·`answer`·`answer_index`·
-     `explanation`·`explanation_speech`·`difficulty`·`tags`.
-   - `explanation_speech`는 TTS 자연발화를 위해 기호/영문 약어를 한글 발음으로 풀어쓴다
-     (예: `CONNECT BY`→"커넥트 바이", `NVL`→"엔브이엘").
-4. 안내: 생성된 `04/lesson_mNN.json`을 영상 툴 `[1 대본]` 탭에 로드 → 저장 → 렌더.
+   - **모든 텍스트 필드는 순수 텍스트** — `**볼드**`·백틱·이미지 `![]()`·코드펜스 ``` 금지
+     (build.py가 자동 순수화; 단일 `*`(SELECT *)는 보존).
+   - **`choices`는 원문자(①②③④) 없이 내용만** — 렌더러가 번호 부여(중복 방지).
+   - **보이는 텍스트 ↔ 들리는 텍스트**: `question`/`explanation`은 원문 표기(시각, 1.2%),
+     `explanation_speech`는 소리나는 대로 발음 표기(시깍, "일 점 이 퍼센트", "커넥트 바이") — #2가 집필.
+   - 도형: `assets[]`에 참조 SVG 파일명, 파일은 `04/assets/`에 동반 복사됨.
+   - 루트 고정값: `gap_seconds`·`voice`·`speed`·`ai_reading`(회차 데이터로 오버라이드 가능).
+   - **유튜브 글은 JSON에 넣지 않는다**(타임스탬프는 렌더 후 #3가 생성). `title`/`subject`/`round`/`tags`/`difficulty`만 충실히.
+4. 안내: 생성된 `04/lesson_mNN.json`(+`04/assets/`)을 영상 툴 `[1 대본]` 탭에 로드 → 저장 → 렌더.
 
 ## 산출
 - `04/lesson_m01.json`, `lesson_m02.json`, `lesson_m03.json` ...

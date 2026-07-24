@@ -54,6 +54,45 @@ def detect_flags(q: dict) -> tuple[bool, bool, bool]:
     return has_figure, has_sql, has_table
 
 
+def to_plain(text: str) -> str:
+    """lesson JSON의 화면/자막/낭독 필드용 순수 텍스트화.
+    마크다운 리터럴(볼드 **, 인라인 코드 `, 이미지 ![](), 코드펜스 ```)을 제거하되
+    단일 `*`(SELECT * 등)는 보존한다. (MD/02 산출물에는 적용하지 않음)"""
+    if not text:
+        return ""
+    s = str(text)
+    s = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", s)     # 이미지 마크다운 제거
+    s = re.sub(r"(?m)^[ \t]*```[^\n]*$", "", s)      # 코드펜스 라인 제거(내용은 유지)
+    s = s.replace("**", "")                           # 볼드 마커 제거(단일 * 는 보존)
+    s = s.replace("`", "")                            # 인라인 코드 백틱 제거
+    s = re.sub(r"\n{3,}", "\n\n", s)                  # 과다 빈 줄 정리
+    return s.strip()
+
+
+def asset_names(q: dict, qid: str) -> list[str]:
+    """문항이 참조하는 SVG 파일명 집합(순서 유지, 중복 제거).
+    assets[].name + 레거시 svg(→{id}.svg) + 본문 ](assets/NAME) 참조."""
+    names: list[str] = []
+    for a in q.get("assets", []) or []:
+        n = str(a["name"])
+        names.append(n if n.endswith(".svg") else n + ".svg")
+    svg = q.get("svg")
+    if svg and str(svg).strip().startswith("<svg"):
+        names.append(f"{qid}.svg")
+    blob = "\n".join(str(x) for x in [
+        q.get("question", ""), q.get("passage") or "", q.get("explanation", "")])
+    for m in re.finditer(r"\]\(assets/([^)\s]+)\)", blob):
+        nm = m.group(1)
+        names.append(nm if nm.endswith(".svg") else nm + ".svg")
+    seen: set[str] = set()
+    out: list[str] = []
+    for n in names:
+        if n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
+
+
 def yaml_escape(s: str) -> str:
     # 단순 스칼라: 특수문자 있으면 큰따옴표로 감싸기
     if s == "" or re.search(r'[:#\[\]{}",&*?|<>=!%@`]', s) or s.strip() != s:
@@ -144,26 +183,36 @@ def build_frontmatter(round_meta: dict, q: dict) -> dict:
     }
 
 
-def lesson_problem_block(q: dict) -> dict:
+def lesson_problem_block(q: dict, qid: str, names: list[str]) -> dict:
+    # 지문을 문제에 합치되, lesson 필드는 모두 순수 텍스트(마크다운 제거).
     question = q["question"].strip()
     if q.get("passage"):
         question = question + "\n\n" + q["passage"].strip()
-    choices = [f"{circled(i)} {str(c).strip()}" for i, c in enumerate(q["choices"])]
-    return {
+    block = {
         "number": q["question_no"],
         "type": "multiple_choice",
-        "question": question,
-        "choices": choices,
+        "question": to_plain(question),
+        # choices는 원문자 접두 없이 순수 텍스트(렌더러가 번호 부여 → ①① 중복 방지)
+        "choices": [to_plain(str(c)) for c in q["choices"]],
         "answer": circled(q["answer_index"]),
         "answer_index": q["answer_index"],
-        "explanation": q["explanation"].strip(),
-        "explanation_speech": (q.get("explanation_speech") or q["explanation"]).strip(),
+        "explanation": to_plain(q["explanation"]),
+        # 낭독체(소리나는 대로): 집필 시 explanation_speech 제공 권장. 없으면 explanation을 순수화.
+        "explanation_speech": to_plain(q.get("explanation_speech") or q["explanation"]),
         "difficulty": q["difficulty"],
         "tags": q.get("tags", []),
     }
+    if names:  # 참조 SVG 파일명(도형은 04/assets 에 동반 복사됨)
+        block["assets"] = names
+    if q.get("narration_question"):
+        block["narration_question"] = to_plain(q["narration_question"])
+    if q.get("narration_answer"):
+        block["narration_answer"] = to_plain(q["narration_answer"])
+    return block
 
 
 def build_lesson(round_meta: dict, questions: list[dict]) -> dict:
+    code = round_meta["round_code"]
     blocks = []
     last_subject = None
     for q in questions:
@@ -175,7 +224,8 @@ def build_lesson(round_meta: dict, questions: list[dict]) -> dict:
                 "narration": f"{round_meta['round_label']} {q['subject']} 문제입니다.",
             })
             last_subject = q["subject"]
-        blocks.append({"kind": "problem", **lesson_problem_block(q)})
+        qid = f"{code}-{q['question_no']:02d}"
+        blocks.append({"kind": "problem", **lesson_problem_block(q, qid, asset_names(q, qid))})
     return {
         "version": "1.0",
         "kind": "lesson",
@@ -183,10 +233,14 @@ def build_lesson(round_meta: dict, questions: list[dict]) -> dict:
         "title": f"{round_meta['round_label']} — 문제 풀이(문제 전용)",
         "subject": round_meta.get("subject_default", "SQLD"),
         "theme": round_meta.get("theme", "sqld"),
-        "scenes_per_problem": 2,
+        "scenes_per_problem": round_meta.get("scenes_per_problem", 2),
         "include_lecture": False,
-        "countdown_seconds": 5,
+        "countdown_seconds": round_meta.get("countdown_seconds", 5),
+        "gap_seconds": round_meta.get("gap_seconds", 1.5),
         "round": round_meta["round_label"],
+        "voice": round_meta.get("voice", "F2"),
+        "speed": round_meta.get("speed", 1.05),
+        "ai_reading": round_meta.get("ai_reading", False),
         "blocks": blocks,
     }
 
@@ -199,6 +253,15 @@ def process_round(path: Path, book: Path, dry: bool) -> list[dict]:
     dir02 = book / "02"
     dir04 = book / "04"
     assets = dir02 / "assets"
+    assets04 = dir04 / "assets"
+
+    def write_asset(name: str, svg_text: str) -> None:
+        # 도형은 02/assets(문제용)와 04/assets(영상 대본 동반) 양쪽에 기록.
+        if dry:
+            return
+        for d in (assets, assets04):
+            d.mkdir(parents=True, exist_ok=True)
+            (d / name).write_text(svg_text, encoding="utf-8")
 
     index_items = []
     for q in questions:
@@ -209,20 +272,16 @@ def process_round(path: Path, book: Path, dry: bool) -> list[dict]:
             dir02.mkdir(parents=True, exist_ok=True)
             md_path.write_text(md, encoding="utf-8")
         # SVG 자산 — 문항당 여러 개 허용(문제/지문/해설 어디서든 ![..](assets/NAME.svg)로 참조).
-        # (a) assets[]: [{"name": "m01-09-erd", "svg": "<svg ...>"}]  → 02/assets/NAME.svg
+        # (a) assets[]: [{"name": "m01-09-erd", "svg": "<svg ...>"}]  → {02,04}/assets/NAME.svg
         for a in q.get("assets", []) or []:
             name = str(a["name"])
             if not name.endswith(".svg"):
                 name += ".svg"
-            if not dry:
-                assets.mkdir(parents=True, exist_ok=True)
-                (assets / name).write_text(a["svg"], encoding="utf-8")
-        # (b) 레거시 단일 svg(인라인 문자열) → 02/assets/{id}.svg (지문에 자동 첨부)
+            write_asset(name, a["svg"])
+        # (b) 레거시 단일 svg(인라인 문자열) → {02,04}/assets/{id}.svg (지문에 자동 첨부)
         svg = q.get("svg")
         if svg and str(svg).strip().startswith("<svg"):
-            if not dry:
-                assets.mkdir(parents=True, exist_ok=True)
-                (assets / f"{fm['id']}.svg").write_text(svg, encoding="utf-8")
+            write_asset(f"{fm['id']}.svg", svg)
         index_items.append({
             "id": fm["id"], "round": fm["round"], "subject": fm["subject"],
             "subject_no": fm["subject_no"], "question_no": fm["question_no"],

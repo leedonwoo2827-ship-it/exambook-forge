@@ -15,6 +15,11 @@
   "round_label": "자사 모의고사 01회",
   "subject_default": "SQLD",
   "theme": "sqld",
+  "voice": "F2",
+  "speed": 1.05,
+  "countdown_seconds": 5,
+  "gap_seconds": 1.5,
+  "ai_reading": false,
   "questions": [
     {
       "question_no": 1,
@@ -27,13 +32,16 @@
       "passage": null,
       "choices": ["선지1", "선지2", "선지3", "선지4"],
       "answer_index": 2,
-      "explanation": "해설 (마크다운)",
-      "explanation_speech": "TTS 낭독용 해설(선택; 없으면 explanation에서 파생)",
+      "explanation": "해설 (마크다운; 화면·자막용 원문 표기)",
+      "explanation_speech": "해설 낭독본 (소리나는 대로 발음 표기)",
       "svg": null
     }
   ]
 }
 ```
+
+루트 옵션(`voice`/`speed`/`countdown_seconds`/`gap_seconds`/`ai_reading`)은 생략 시 기본값
+(F2 / 1.05 / 5 / 1.5 / false)이 lesson JSON에 채워진다. `subject_default`→lesson `subject`, `theme`→`theme`.
 
 ## 문항 필드
 
@@ -47,10 +55,12 @@
 | `derived_from` | ✅ | 원 개념 근거 문항 id (검수 추적) |
 | `question` | ✅ | 문제 지시문. 지문이 문제와 한 덩어리면 여기에 포함 가능 |
 | `passage` | ❌ | `## 지문` 내용(표/SQL/그림). 없으면 `null` → 지문 섹션 생략 |
-| `choices` | ✅ | 정확히 **4개** 문자열(원문자 없이 내용만; build가 ①②③④ 부여) |
+| `choices` | ✅ | 정확히 **4개** 문자열(원문자 없이 내용만). MD(02)엔 build가 ①②③④ 부여, lesson(04)엔 순수 텍스트 유지 |
 | `answer_index` | ✅ | 0-based 정답 인덱스(0~3) |
-| `explanation` | ✅ | 해설 |
-| `explanation_speech` | ❌ | 음성 낭독본. 없으면 build가 explanation을 정리해 사용 |
+| `explanation` | ✅ | 해설. **화면·자막용 원문 표기**(시각, 1.2%, 3,000원 그대로) |
+| `explanation_speech` | 권장 | **낭독본 — 소리나는 대로 발음 표기**(시각→"시깍", 1.2%→"일 점 이 퍼센트", NVL→"엔브이엘"). 없으면 explanation을 순수화해 대체하지만, 품질을 위해 직접 작성 권장 |
+| `narration_question` | ❌ | (선택) 문제 낭독본을 따로 발음 표기로 제공할 때 |
+| `narration_answer` | ❌ | (선택) 정답 낭독본을 따로 발음 표기로 제공할 때 |
 | `assets` | ❌ | **SVG 자산 배열** `[{"name":"m01-09-erd","svg":"<svg ...>"}]`. build가 `02/assets/NAME.svg`로 저장. **문제/지문/해설 어디서든** `![설명](assets/NAME.svg)`로 참조. 개수 제한 없음 — **많이 쓸수록 좋다**(개념 시각화) |
 | `svg` | ❌ | (레거시·단축) 인라인 SVG 문자열 1개. `02/assets/{id}.svg`로 저장되고 **지문에 자동 첨부**. 여러 개/해설 삽입은 `assets` 사용 |
 

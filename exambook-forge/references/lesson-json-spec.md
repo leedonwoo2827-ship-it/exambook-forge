@@ -1,10 +1,15 @@
 # 영상 lesson JSON 규격 (compy-ui-mujejip 연동)
 
-`compy-ui-mujejip` 영상 툴은 lesson JSON을 입력받아 슬라이드/자막/대본 → MP4를 만든다.
+`compy-ui-mujejip` 영상 툴(파이프라인 #3)은 lesson JSON을 입력받아 슬라이드/자막/대본 → MP4를 만든다.
 `build-video-json` 스킬/헬퍼가 회차별로 `04/lesson_{회차코드}.json` 1개를 생성한다(문제 영상 대본).
 
-> **폴더 매핑**: 02 = 문제 MD · 03 = 요약원고 · **04 = 문제 영상 대본 lesson JSON**.
+> **폴더 매핑**: 02 = 문제 MD · 03 = 요약원고 · **04 = 문제 영상 대본 lesson JSON(+04/assets SVG)**.
 > 04는 파이프라인 README에 없던 새 단계이므로, 스킬이 04를 만들 때 책 루트 README에도 04 항목을 추가한다.
+
+> ⚠️ **핵심 원칙(파이프라인 #3 핸드오프):** lesson JSON의 텍스트 필드는 **순수 텍스트**다.
+> 마크다운(`**볼드**`, 백틱, 이미지 `![]()`, 코드펜스 ```` ``` ````)을 넣지 않는다 —
+> 슬라이드/자막/TTS는 마크다운을 해석하지 않아 그대로 노출/낭독된다. (build.py가 자동 순수화하지만,
+> 애초에 깔끔하면 최선. `SELECT *`의 단일 `*`는 보존된다.)
 
 ## 루트 필드
 
@@ -19,7 +24,11 @@
   "scenes_per_problem": 2,
   "include_lecture": false,
   "countdown_seconds": 5,
+  "gap_seconds": 1.5,
   "round": "자사 모의고사 01회",
+  "voice": "F2",
+  "speed": 1.05,
+  "ai_reading": false,
   "blocks": [ ... ]
 }
 ```
@@ -30,23 +39,24 @@
 | `kind` | `"lesson"` | 고정 |
 | `chapter` | int | 회차 번호 |
 | `title` | str | 영상 제목 |
-| `subject` / `theme` | str | 과목/테마 (SQLD면 `"SQLD"`/`"sqld"`; 타 과목은 교체) |
-| `scenes_per_problem` | int | 문항당 씬 수 (기본 2) |
-| **`include_lecture`** | bool | **`false` = 문제 전용**(문제→보기까지, 정답/해설 제외). `true` = 정답·해설까지 강의형 |
-| `countdown_seconds` | int | 문제 후 카운트다운(자가 풀이용) |
+| `subject` / `theme` | str | 과목/테마 (SQLD면 `"SQLD"`/`"sqld"`; 타 과목은 교체). `theme`가 발음 톤 힌트 |
+| `scenes_per_problem` | int | 문항당 씬 수 (문제 씬 + 해설 씬, 기본 2) |
+| **`include_lecture`** | bool | **`false` = 문제 전용**(문제→보기까지, 정답/해설 제외). `true`면 section/concept 등도 영상 포함 |
+| `countdown_seconds` | int | 문제→해설 사이 카운트다운 54321 (기본 5, 0=끔) |
+| `gap_seconds` | num | 해설→다음 문제 간격 (기본 1.5) |
 | `round` | str | 회차 표시 (출처 표기용) |
+| `voice` | str | TTS 보이스 (기본 `"F2"`) |
+| `speed` | num | 낭독 속도 (기본 1.05) |
+| `ai_reading` | bool | 자동 발음 변환 사용 여부 (기본 false; 낭독 텍스트를 #2가 직접 발음 표기) |
 | `blocks` | array | section / concept / problem 블록 배열 |
+
+> `gap_seconds`/`voice`/`speed`/`ai_reading`는 회차 데이터 루트에서 오버라이드 가능(없으면 위 기본값).
 
 ## 블록 종류
 
 ### section
 ```json
-{ "kind": "section", "title": "1과목 데이터 모델링의 이해", "subtitle": "1~10번", "narration": "..." }
-```
-
-### concept (선택)
-```json
-{ "kind": "concept", "heading": "계층형 쿼리 핵심", "bullets": ["START WITH", "CONNECT BY PRIOR"], "narration": "..." }
+{ "kind": "section", "title": "데이터 모델링의 이해", "subtitle": "1과목", "narration": "..." }
 ```
 
 ### problem (핵심)
@@ -55,38 +65,53 @@
   "kind": "problem",
   "number": 7,
   "type": "multiple_choice",
-  "question": "문제 지시문 (지문 표/SQL은 여기에 포함하거나 별도 필드로)",
-  "choices": ["① ...", "② ...", "③ ...", "④ ..."],
+  "question": "문제 지시문 + 지문(표/SQL). 순수 텍스트.",
+  "choices": ["보기1 내용", "보기2 내용", "보기3 내용", "보기4 내용"],
   "answer": "②",
   "answer_index": 1,
-  "explanation": "해설 텍스트",
-  "explanation_speech": "TTS 낭독용 해설(숫자/영어 읽기 자연스럽게 풀어쓴 버전)",
+  "explanation": "해설 (순수 텍스트, 화면·자막용 원문 표기)",
+  "explanation_speech": "해설 낭독본 (소리나는 대로 발음 표기)",
   "difficulty": "중",
-  "tags": ["집합 연산자", "UNION", "MINUS"]
+  "tags": ["집합 연산자", "UNION", "MINUS"],
+  "assets": ["m01-07-venn.svg"]
 }
 ```
 
+- **`choices`는 원문자(`①②③④`) 없이 순수 텍스트만** — 렌더러가 번호를 부여하므로 접두를 넣으면 `① ①` 중복.
+- **`answer`는 원문자**(`②`)이고 `answer_index`(0-based)와 일치.
+- **`assets`(선택)**: 이 문제가 참조하는 SVG 파일명 배열. 파일은 `04/assets/`에 동반 복사된다
+  (도형이 04만 봐도 "따라오게"). 도형 렌더는 #3 후속 예정, 현재는 텍스트 위주.
+- **`narration_question`/`narration_answer`(선택)**: 필요 시 문제/정답 낭독본을 따로 발음 표기로 제공.
+
 ## MD ↔ lesson problem 매핑
 
-| MD | lesson problem |
+| MD(02, 마크다운 유지) | lesson problem(04, 순수 텍스트) |
 |---|---|
-| `## 문제` (+ `## 지문`) | `question` |
-| `## 보기` ①②③④ | `choices[]` |
-| frontmatter `answer` | `answer` |
-| frontmatter `answer_index` | `answer_index` |
-| `## 해설` | `explanation` |
-| (해설의 음성 낭독본) | `explanation_speech` |
-| frontmatter `difficulty` | `difficulty` |
-| frontmatter `tags` | `tags[]` |
+| `## 문제` (+ `## 지문`) | `question` (마크다운 제거) |
+| `## 보기` ①②③④ | `choices[]` (**원문자 제거**, 내용만) |
+| frontmatter `answer` / `answer_index` | `answer` / `answer_index` |
+| `## 해설` | `explanation` (마크다운 제거) |
+| 회차 데이터 `explanation_speech`(발음체) | `explanation_speech` |
+| frontmatter `difficulty` / `tags` | `difficulty` / `tags[]` |
+| 참조 SVG 파일명 | `assets[]` (+ `04/assets/`에 파일 복사) |
+
+## 보이는 텍스트 ↔ 들리는 텍스트 (중요)
+- **화면/자막용**(`question`, `explanation`, `choices`): **원문 표기 그대로**. 예: `시각`, `1.2%`, `3,000원`.
+- **낭독용**(`explanation_speech`, 선택 `narration_*`): **소리나는 대로 발음 표기**로 #2가 집필.
+  예: `시각`→"시깍", `1.2%`→"일 점 이 퍼센트", `3,000원`→"삼천 원", `CONNECT BY`→"커넥트 바이", `NVL`→"엔브이엘".
+- 이유: #3의 발음사전은 짧은 어휘/단위만 치환 가능하고, 대소리·소수점·복잡한 수/기호는 규칙으로 불가.
+  따라서 **낭독 품질은 #2(집필)가 책임**진다. `ai_reading:false`로 두고 발음 표기를 직접 제공.
 
 ## 문제 전용(`include_lecture:false`) 규칙
-- 이번 프로토타입 목표는 **문제 전용 영상**이므로 회차 JSON은 `include_lecture:false`.
-- `explanation`/`explanation_speech`는 JSON에 담아 두되(추후 강의형 재사용), 툴이 `false`일 때 렌더에서 제외.
-- `explanation_speech`: TTS 자연발화를 위해 숫자·영문을 한글 발음으로 풀어쓴다.
-  예: `CONNECT BY` → "커넥트 바이", `NVL` → "엔브이엘", `10.5` → "십 점 오".
-  (툴에 자동 발음 변환이 있으나, 애매한 약어·기호는 미리 풀어두면 품질이 좋다.)
+- 이번 목표는 **문제 전용 영상**이므로 회차 JSON은 `include_lecture:false`.
+- `explanation`/`explanation_speech`는 담아 두되(추후 강의형 재사용) 툴이 `false`일 때 렌더에서 제외.
 
-## 지문(표/SQL) 처리
-- 표/SQL 지문은 `question` 문자열 안에 마크다운/코드로 함께 넣는다(슬라이드 렌더가 텍스트 기반).
-- 그림/도형은 SVG를 슬라이드 배경/삽입으로 쓴다. 툴이 SVG를 직접 못 받으면 `build.py`가
-  SVG→PNG 래스터화하여 참조를 바꾼다(‑‑rasterize-svg 옵션; svg-conventions.md 참고).
+## 지문(표/SQL)·도형 처리
+- 표/SQL 지문은 `question` 안에 텍스트로 함께 넣는다(코드펜스 ``` 마커는 제거, SQL 본문은 유지).
+- 도형은 SVG를 `assets[]`로 참조하고 파일을 `04/assets/`에 동반한다. 툴이 SVG를 직접 못 받으면
+  `build.py --rasterize-svg`(또는 hwpx 흐름)로 PNG 치환(svg-conventions.md).
+
+## 유튜브 업로드 글 (JSON에 넣지 않음)
+- 유튜브 설명의 챕터 타임스탬프(00:00 문제1 …)는 **렌더가 끝나야** 알 수 있으므로 #3가
+  렌더 후 타임라인 추출 → LLM으로 생성한다. **#2는 유튜브 글을 JSON에 넣지 않는다.**
+- 대신 `title`/`subject`/`round`/블록별 `tags`·`difficulty`를 충실히 채워 두면 그 LLM 글의 품질이 올라간다.
