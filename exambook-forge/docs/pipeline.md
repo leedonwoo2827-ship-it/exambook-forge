@@ -19,8 +19,9 @@
 ## 책 루트 & 권한
 - 기본 책 루트: 작업공간 상위의 `ocr-output-260723` 자동 탐색(없으면 사용자에게 경로 질의).
 - Claude Desktop 코웍에서 **책 루트 폴더에 읽기/쓰기 권한**을 부여해야 한다.
-- 파일 생성 직전 **한 번** "02/03/04에 씁니다" 동의를 받는다(이후 단계에서 반복 질문하지 않음).
-- `02/03/04/_rounds`는 없으면 헬퍼/스킬이 자동 생성(미리 만들 필요 없음).
+- 파일 생성 직전 **한 번** "02/03/04/05에 씁니다" 동의를 받는다(이후 단계에서 반복 질문하지 않음).
+- `02/03/04/05/_rounds`는 없으면 헬퍼/스킬이 자동 생성(미리 만들 필요 없음).
+- 자사 회차 번호는 `_rounds/`의 기존 회차 **다음 번호부터 이어서**(m01~m03 있으면 m04~) 부여한다.
 
 ## 파이프라인 #3(영상 렌더) 연동 규약
 - lesson JSON 텍스트 필드는 **순수 텍스트**(마크다운 금지), `choices`는 **원문자 없이 내용만**.
@@ -31,6 +32,8 @@
 ## 05 번들 / 슬라이드 / 리모션 연동 규약
 - `build-deck` 스킬 + `scripts/bundle.py`가 `04/lesson_mNN.json`으로 `05/mNN/` 번들을 만든다:
   밝은 `source/deck.html`(슬라이드 원본) + `script/mNN_script.json`(리모션 _series) + `review.json` 스켈레톤.
+- **10문항씩 분할**(권장): `bundle.py --chunk 10` → 회차당 `05/mNN-1 … mNN-5/`(각 10문항 ≈ 12분, 60분 한 편 회피).
+  각 부분 번들은 독립 회차처럼 동작(부분 lesson·deck·_series·review + 과목 섹션 헤더 유지). `--chunk 0`이면 1편.
 - **슬라이드 = deck.html**(1920×1080 고정). #3(chodangi-mp4)가 각 `.slide`를 캡처 → `images/slide_%02d.png`.
 - **일반영상**(리모션 전): #3가 deck 캡처 + Supertonic3(자막/음성 **최종 OK**) + ffmpeg → `draft/mNN.static.mp4` + `mNN.ko.vtt`.
 - **리모션영상**(키네틱): 클로드 데스크탑이 `script/mNN_script.json`으로 `draft/mNN.motion.mp4` 생성. 무거운 스크래치는 책 루트 밖.
@@ -40,6 +43,6 @@
 ## 파일명 규약
 - 문제 MD: `02/mNN-01.md` ~ `mNN-50.md` (자사 회차는 `m` 접두, 원본 기출은 `01-`~`07-`)
 - 영상 대본: `04/lesson_mNN.json`
-- 요약: `03/summary_{과목}.html` / `.md`
+- 요약: `03/summary_{과목}.html` / `.md`, 재생성 전 기존은 `03/_backup_<YYYYMMDD-HHMM>/`로 이동(백업)
 - 회차 데이터: `_rounds/mNN.json`
-- 05 번들: `05/mNN/source/deck.html` · `script/mNN_script.json` · `review.json` · `images/slide_%02d.png` · `audio/scene_%02d.wav` · `subtitles/subtitles.srt` · `draft/mNN.{static,motion}.mp4` · `draft/mNN.ko.vtt`
+- 05 번들: `05/mNN/...` (또는 `--chunk` 시 `05/mNN-1 … mNN-5/`) — `source/deck.html` · `script/{회차}_script.json` · `review.json` · `images/slide_%02d.png` · `audio/scene_%02d.wav` · `subtitles/subtitles.srt` · `draft/{회차}.{static,motion}.mp4` · `draft/{회차}.ko.vtt`

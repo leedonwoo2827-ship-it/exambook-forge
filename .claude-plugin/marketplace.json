@@ -8,7 +8,7 @@
       "name": "exambook-forge",
       "source": "./exambook-forge",
       "description": "기출 1권(OCR 구조화 MD)을 재료로 자사 N회차 모의고사를 재집필하고, 문제 전용 영상 JSON과 요약노트를 생성하는 파이프라인 (SQLD 등 과목 무관). 5 스킬 + 3 커맨드 + 생성기 스크립트.",
-      "version": "0.4.0",
+      "version": "0.6.0",
       "category": "content-authoring",
       "tags": ["exam", "mock-exam", "sqld", "video", "summary-note", "pipeline"]
     }

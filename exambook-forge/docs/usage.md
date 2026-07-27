@@ -11,11 +11,12 @@
 
 | 커맨드 | 인자(선택) | 산출 |
 |---|---|---|
-| `/exam-all` | `rounds=3` `book=<경로>` `subject=SQLD` | 02 문제 + 04 영상 JSON + 03 요약 |
-| `/exam-questions` | `rounds=3` `round=m01` `book=<경로>` | 02 문제 + 04 영상 JSON |
-| `/exam-summary` | `book=<경로>` `subject=all` | 03 요약(HTML+MD) |
+| `/exam-all` | `rounds=3` `chunk=10` `book=<경로>` `subject=SQLD` | 02 문제 + 04 영상 JSON + **05 번들(10문항씩)** + 03 요약 |
+| `/exam-questions` | `rounds=3` `round=m04` `chunk=10` `book=<경로>` | 02 문제 + 04 영상 JSON + 05 번들 |
+| `/exam-summary` | `book=<경로>` `subject=all` | 03 요약(HTML+MD, 기존은 백업) |
 
-> 슬라이드/영상 번들(05)은 `build-deck` 스킬로: `04/lesson_mNN.json` → `05/mNN/`(밝은 deck.html + 리모션 _series + review.json).
+> 회차 번호는 `_rounds/`의 기존 회차 **다음 번호부터 이어서**(m01~m03 있으면 m04~) 생성된다.
+> 05 번들은 `bundle.py --chunk 10`로 **회차당 5편**(각 10문항 ≈ 12분) 만들어지고, deck.html 다듬기는 `build-deck` 스킬.
 
 `/exam-all`이 한 번에 끝나면 좋고, 무거우면 `/exam-questions` → `/exam-summary` 2단계로 나눠 실행.
 
@@ -40,11 +41,15 @@ python "<PLUGIN>/scripts/split.py" --input "<book>/04/lesson_m01.json" --parts 5
 
 ## 05 번들 만들기 (deck.html 슬라이드 + 리모션 대본)
 ```
-# 04/lesson_mNN.json → 05/mNN/ 골격(deck.html 스텁 + _series + review.json)
-python "<PLUGIN>/scripts/bundle.py" --book "<book>" --round m01
-#   기존 집필 deck.html 보존(덮어쓰려면 --force)
+# 04/lesson_mNN.json → 05/mNN-1 … mNN-5/  (10문항씩 회차당 5편, 각 ≈12분)  ← 권장
+python "<PLUGIN>/scripts/bundle.py" --book "<book>" --chunk 10
+#   회차당 1편(50문항)으로 두려면 --chunk 0 (또는 생략)
+#   특정 회차만: --round m04   /   기존 deck.html 보존(덮어쓰려면 --force)
 ```
-이어서 `build-deck` 스킬로 `05/mNN/source/deck.html`을 [`../references/deck-conventions.md`](../references/deck-conventions.md)에 맞춰 다듬는다(밝은 팔레트, 슬라이드=씬 1:1).
+각 부분 번들에는 해당 10문항의 부분 lesson·deck.html·_series·review.json이 들어가고, 과목 섹션 헤더는 유지된다.
+이어서 `build-deck` 스킬로 `05/<회차-부분>/source/deck.html`을 [`../references/deck-conventions.md`](../references/deck-conventions.md)에 맞춰 다듬는다(밝은 팔레트, 슬라이드=씬 1:1).
+
+> `split.py`는 lesson JSON만 단독 분할(04/01-1.json…)할 때 쓰고, 05 번들까지 한 번에 나누려면 `bundle.py --chunk`를 쓴다.
 
 ## 영상 툴 연동 (chodangi-mp4 = 일반영상, 리모션 = 키네틱)
 1. **일반영상(#3):** `render.bat mNN` → `source/deck.html` 캡처(`images/slide_*.png`) + Supertonic3 자막/음성 + ffmpeg → `05/mNN/draft/mNN.static.mp4` + `mNN.ko.vtt`. **자막·음성 최종 OK는 여기서**(#3 웹 UI 또는 배치 재실행).
@@ -56,7 +61,8 @@ python "<PLUGIN>/scripts/bundle.py" --book "<book>" --round m01
 - MD: frontmatter 필수 필드, 보기 4개, 정답 인덱스 정합, `_index.json` 개수 = 회차×50
 - 분포: 난이도 상12~16/중24~28/하8~10, 정답 ①②③④ 각 8~17
 - 영상 JSON: `include_lecture:false`, problem 블록에 tags/explanation_speech 포함
-- 요약: HTML 브라우저 렌더 확인, 과목·순서·출처 표기 정합, 인라인 SVG 표시
+- 05 번들: `--chunk 10`이면 회차당 5편(`mNN-1…mNN-5`), 각 `source/deck.html`·`script/*_script.json`·`review.json`, 씬 인덱스 0-base 연속
+- 요약: 재생성 전 기존이 `03/_backup_<날짜>/`로 이동됐는지, 기출+자사 **전 회차 병합**인지, HTML 인라인 SVG 표시
 
 ## hwpx 변환(나중)
 - 요약 HTML은 단순 시맨틱 마크업이라 hwpx 변환 친화. SVG는 변환 시 PNG로 래스터화해 치환(원본 유지).

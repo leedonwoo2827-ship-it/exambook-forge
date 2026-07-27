@@ -34,10 +34,14 @@ metadata:
    - 도형: `assets[]`에 참조 SVG 파일명, 파일은 `04/assets/`에 동반 복사됨.
    - 루트 고정값: `gap_seconds`·`voice`·`speed`·`ai_reading`(회차 데이터로 오버라이드 가능).
    - **유튜브 글은 JSON에 넣지 않는다**(타임스탬프는 렌더 후 #3가 생성). `title`/`subject`/`round`/`tags`/`difficulty`만 충실히.
-4. 안내: 생성된 `04/lesson_mNN.json`(+`04/assets/`)을 영상 툴 `[1 대본]` 탭에 로드 → 저장 → 렌더.
+4. **번들(05, 10문항씩)**: `python "${CLAUDE_PLUGIN_ROOT}/scripts/bundle.py" --book "<book>" --chunk 10`
+   → 회차당 `05/mNN-1 … mNN-5/`(각 10문항 ≈ 12분): 일반 `source/deck.html` + 모션 `script/mNN-P_script.json`
+   (_series) + `review.json`. 60분 한 편이 너무 길 때 이 분할을 쓴다(`--chunk 0`이면 회차당 1편).
+5. 안내: `05/<회차-부분>/`을 #3(`render.bat`)·리모션이 렌더한다. deck.html 다듬기는 `build-deck` 스킬.
 
 ## 산출
-- `04/lesson_m01.json`, `lesson_m02.json`, `lesson_m03.json` ...
+- `04/lesson_m01.json …` (+ `04/assets/`)
+- `05/mNN-1 … mNN-5/` (일반 deck + 모션 _series + review.json)
 
 ## 주의
 - 렌더(TTS/자막/ffmpeg/MP4)는 이 스킬 범위 밖(사용자가 영상 툴에서 실행). 여기선 JSON까지.

@@ -21,6 +21,7 @@ exam-forge bundle scaffolder (파이프라인 05 단계).
 사용:
   python bundle.py --book D:/00work/ocr-output-260723 --round m01
   python bundle.py --book D:/00work/ocr-output-260723            # 04/의 모든 lesson_*.json
+  python bundle.py --book ... --round m01 --chunk 10             # 10문항씩 5편(05/m01-1..m01-5)
   python bundle.py --book ... --round m01 --force                # 기존 deck.html 덮어쓰기
 """
 from __future__ import annotations
@@ -235,11 +236,44 @@ def build_deck_stub(lesson: dict) -> str:
         '</body></html>\n')
 
 
+# ----------------------------------------------------------------------------- chunk
+def _active_section(blocks: list[dict], upto: int) -> dict | None:
+    sec = None
+    for b in blocks[:upto]:
+        if b.get("kind") == "section":
+            sec = b
+    return sec
+
+
+def chunk_lesson(lesson: dict, per: int) -> list[tuple[str | None, dict]]:
+    """lesson을 문항 per개씩 나눈 (코드접미, 부분lesson) 목록. per<=0 또는 분할불필요면 [(None, lesson)]."""
+    blocks = lesson.get("blocks", [])
+    prob_idx = [i for i, b in enumerate(blocks) if b.get("kind") == "problem"]
+    if per <= 0 or len(prob_idx) <= per:
+        return [(None, lesson)]
+    groups = [prob_idx[i:i + per] for i in range(0, len(prob_idx), per)]
+    total = len(groups)
+    base_title = str(lesson.get("title", ""))
+    out: list[tuple[str | None, dict]] = []
+    for gi, g in enumerate(groups):
+        start = 0 if gi == 0 else g[0]
+        end = groups[gi + 1][0] if gi + 1 < len(groups) else len(blocks)
+        part_blocks = list(blocks[start:end])
+        if gi > 0 and (not part_blocks or part_blocks[0].get("kind") != "section"):
+            sec = _active_section(blocks, start)
+            if sec is not None:
+                part_blocks = [sec] + part_blocks
+        sub = dict(lesson)
+        sub["blocks"] = part_blocks
+        sub["title"] = f"{base_title} ({gi + 1}/{total})"
+        sub["part_index"] = gi + 1
+        sub["part_total"] = total
+        out.append((f"-{gi + 1}", sub))
+    return out
+
+
 # ----------------------------------------------------------------------------- core
-def process_lesson(lesson_path: Path, book: Path, force: bool) -> None:
-    lesson = json.loads(lesson_path.read_text(encoding="utf-8"))
-    stem = lesson_path.stem
-    code = stem[len("lesson_"):] if stem.startswith("lesson_") else stem
+def write_bundle(lesson: dict, code: str, book: Path, force: bool) -> None:
     bundle = book / "05" / code
     for sub in BUNDLE_SUBDIRS:
         (bundle / sub).mkdir(parents=True, exist_ok=True)
@@ -248,7 +282,8 @@ def process_lesson(lesson_path: Path, book: Path, force: bool) -> None:
 
     # source/
     src = bundle / "source"
-    shutil.copy2(lesson_path, src / lesson_path.name)
+    (src / f"lesson_{code}.json").write_text(
+        json.dumps(lesson, ensure_ascii=False, indent=2), encoding="utf-8")  # (부분)lesson 사본
     for asset in ("_deck.css", "_deck.js"):
         a = DECK_ASSETS / asset
         if a.exists():
@@ -270,8 +305,19 @@ def process_lesson(lesson_path: Path, book: Path, force: bool) -> None:
         json.dumps(build_review(lesson, scenes), ensure_ascii=False, indent=2), encoding="utf-8")
 
     n_cap = sum(1 for s in scenes if s["capture"])
-    print(f"[{code}] 씬 {len(scenes)}(캡처 {n_cap}) → 05/{code}/ "
-          f"(source·script·review.json)")
+    n_prob = sum(1 for s in scenes if s.get("kind") == "problem")
+    print(f"[{code}] 문항 {n_prob} · 씬 {len(scenes)}(캡처 {n_cap}) → 05/{code}/ (source·script·review.json)")
+
+
+def process_lesson(lesson_path: Path, book: Path, force: bool, chunk: int = 0) -> None:
+    lesson = json.loads(lesson_path.read_text(encoding="utf-8"))
+    stem = lesson_path.stem
+    code = stem[len("lesson_"):] if stem.startswith("lesson_") else stem
+    parts = chunk_lesson(lesson, chunk)
+    if len(parts) > 1:
+        print(f"[{code}] {chunk}문항씩 {len(parts)}편으로 분할")
+    for suffix, sub in parts:
+        write_bundle(sub, code if suffix is None else f"{code}{suffix}", book, force)
 
 
 def main() -> int:
@@ -279,6 +325,8 @@ def main() -> int:
     ap.add_argument("--book", required=True, help="책 루트 (예: D:/00work/ocr-output-260723)")
     ap.add_argument("--round", default=None, help="특정 회차코드만 (예: m01)")
     ap.add_argument("--stage04-dir", default=None, help="lesson JSON 폴더 (기본: <book>/04)")
+    ap.add_argument("--chunk", type=int, default=0,
+                    help="문항 N개씩 여러 편으로 분할(예: 10 → 회차당 5편 05/mNN-1..). 0=분할 안 함")
     ap.add_argument("--force", action="store_true", help="기존 deck.html 덮어쓰기(집필본 삭제 주의)")
     args = ap.parse_args()
 
@@ -296,7 +344,7 @@ def main() -> int:
         return 2
 
     for f in files:
-        process_lesson(f, book, args.force)
+        process_lesson(f, book, args.force, args.chunk)
     print("완료.")
     return 0
 
