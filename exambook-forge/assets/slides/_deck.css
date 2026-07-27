@@ -1,0 +1,157 @@
+/* 공유 덱 스타일 — 밝은 테마. 슬라이드는 1920×1080 고정(캡처 결정성).
+   회차별 deck.html 은 <link rel="stylesheet" href="_deck.css"> 후
+   :root 4색 팔레트만 재정의한다(--brand/--brand-2/--soft/--brand-ink). */
+
+:root {
+  --brand: #2563EB;      /* 메인 */
+  --brand-2: #60A5FA;    /* 보조/그라디언트 */
+  --soft: #EFF6FF;       /* 옅은 배경 칩 */
+  --brand-ink: #1E3A8A;  /* 진한 글자 */
+  --ink: #0F172A;        /* 본문 */
+  --muted: #475569;      /* 보조 텍스트 */
+  --line: #E2E8F0;       /* 경계선 */
+  --paper: #FFFFFF;      /* 카드 배경 */
+  --ok: #16A34A;         /* 정답 */
+  --ok-soft: #DCFCE7;
+  --slide-w: 1920px;
+  --slide-h: 1080px;
+  --pad: 96px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #0b1220; }
+body {
+  font-family: "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 가로 스크롤 덱 컨테이너 */
+#deck {
+  display: flex;
+  flex-flow: row nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  height: 100vh;
+}
+#deck::-webkit-scrollbar { height: 0; }
+
+/* 각 슬라이드 = 1920×1080 고정 (캡처 대상) */
+.slide {
+  position: relative;
+  flex: 0 0 var(--slide-w);
+  width: var(--slide-w);
+  height: var(--slide-h);
+  scroll-snap-align: start;
+  padding: var(--pad);
+  overflow: hidden;
+  background:
+    radial-gradient(900px 600px at 88% -10%, color-mix(in srgb, var(--brand-2) 22%, transparent), transparent 60%),
+    radial-gradient(1100px 700px at -8% 110%, color-mix(in srgb, var(--brand) 16%, transparent), transparent 60%),
+    var(--paper);
+}
+
+/* 표지 */
+.slide.cover {
+  display: flex; flex-direction: column; justify-content: center;
+  background:
+    radial-gradient(1200px 800px at 80% 10%, color-mix(in srgb, var(--brand-2) 30%, transparent), transparent 60%),
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 12%, #fff), var(--paper));
+}
+.slide.cover .eyebrow { color: var(--brand-ink); font-weight: 800; letter-spacing: .04em; font-size: 40px; margin-bottom: 24px; }
+.slide.cover h1 { font-size: 120px; line-height: 1.05; margin: 0 0 28px; color: var(--ink); font-weight: 900; }
+.slide.cover .lead { font-size: 44px; color: var(--muted); margin: 0; max-width: 1400px; }
+
+/* 본문 슬라이드 헤더 */
+.s-head { display: flex; align-items: center; gap: 24px; margin-bottom: 40px; }
+.s-head h2 { font-size: 66px; margin: 0; color: var(--ink); font-weight: 850; }
+.tag {
+  display: inline-block; padding: 12px 28px; border-radius: 999px;
+  background: var(--soft); color: var(--brand-ink); font-weight: 800; font-size: 32px;
+  white-space: nowrap;
+}
+
+/* 본문 영역 */
+.s-body { font-size: 40px; line-height: 1.5; color: var(--ink); }
+.s-body.left { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: start; }
+.s-body ul { margin: 0; padding-left: 1.2em; }
+.s-body li { margin: .5em 0; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 40px; }
+.split { display: grid; grid-template-columns: 1.1fr .9fr; gap: 56px; align-items: center; }
+
+.card {
+  background: var(--paper); border: 2px solid var(--line); border-radius: 28px;
+  padding: 40px; box-shadow: 0 18px 40px rgba(30,58,138,.08);
+}
+
+figure { margin: 0; text-align: center; }
+figure svg { max-width: 100%; height: auto; }
+figcaption { color: var(--muted); font-size: 30px; margin-top: 16px; }
+
+table { border-collapse: collapse; width: 100%; font-size: 34px; }
+th, td { border: 2px solid var(--line); padding: 18px 24px; text-align: left; }
+th { background: var(--soft); color: var(--brand-ink); font-weight: 800; }
+
+/* ── 문항형 전용 컴포넌트 ── */
+.qcard {
+  background: var(--paper); border: 3px solid var(--brand); border-radius: 32px;
+  padding: 56px; box-shadow: 0 20px 50px rgba(37,99,235,.12);
+}
+.qcard .qnum { color: var(--brand-ink); font-weight: 900; font-size: 40px; margin-bottom: 20px; }
+.qcard .qtext { font-size: 52px; line-height: 1.4; font-weight: 700; color: var(--ink); }
+.qcard .passage { font-size: 36px; color: var(--muted); margin-top: 28px; line-height: 1.5; }
+.qcard pre.sql {
+  font-family: "JetBrains Mono", "D2Coding", Consolas, monospace; font-size: 34px;
+  background: #0f172a; color: #e2e8f0; border-radius: 20px; padding: 32px; margin-top: 28px;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.choices { list-style: none; margin: 44px 0 0; padding: 0; display: grid; gap: 24px; }
+.choice {
+  display: flex; align-items: flex-start; gap: 24px; font-size: 40px; line-height: 1.4;
+  padding: 26px 34px; border: 2px solid var(--line); border-radius: 20px; background: var(--paper);
+}
+.choice .marker {
+  flex: 0 0 auto; width: 56px; height: 56px; border-radius: 50%;
+  background: var(--soft); color: var(--brand-ink); font-weight: 900;
+  display: grid; place-items: center; font-size: 34px;
+}
+.choice.correct { border-color: var(--ok); background: var(--ok-soft); }
+.choice.correct .marker { background: var(--ok); color: #fff; }
+
+.answer-badge {
+  display: inline-flex; align-items: center; gap: 16px;
+  background: var(--ok-soft); color: var(--ok); border: 2px solid var(--ok);
+  border-radius: 999px; padding: 16px 36px; font-weight: 900; font-size: 40px;
+}
+.source-chip {
+  position: absolute; top: 48px; right: 48px;
+  background: var(--soft); color: var(--brand-ink); border-radius: 999px;
+  padding: 12px 28px; font-weight: 800; font-size: 30px;
+}
+.explain { margin-top: 36px; font-size: 40px; line-height: 1.55; color: var(--ink); }
+
+/* 카운트다운(생각할 시간) */
+.slide.countdown { display: grid; place-items: center; text-align: center; }
+.slide.countdown .num { font-size: 520px; font-weight: 900; color: var(--brand); line-height: 1; }
+.slide.countdown .label { font-size: 56px; color: var(--muted); font-weight: 800; margin-top: 24px; }
+
+/* 자동 주입 푸터 */
+.s-foot {
+  position: absolute; left: var(--pad); right: var(--pad); bottom: 44px;
+  display: flex; justify-content: space-between; align-items: center;
+  color: var(--muted); font-size: 28px; border-top: 2px solid var(--line); padding-top: 20px;
+}
+.s-foot .fl b { color: var(--brand-ink); }
+
+/* 내비게이션 UI (화면 전용 — 캡처 시 #3가 숨김) */
+.nav { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; z-index: 20; }
+.nav button, #fs {
+  font-size: 30px; border: none; border-radius: 999px; padding: 14px 26px; cursor: pointer;
+  background: var(--brand); color: #fff; font-weight: 800; box-shadow: 0 8px 20px rgba(37,99,235,.35);
+}
+.nav button[disabled] { opacity: .35; cursor: default; }
+#fs { position: fixed; top: 24px; right: 24px; z-index: 20; }

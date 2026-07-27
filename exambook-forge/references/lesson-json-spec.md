@@ -131,3 +131,8 @@
 - 유튜브 설명의 챕터 타임스탬프(00:00 문제1 …)는 **렌더가 끝나야** 알 수 있으므로 #3가
   렌더 후 타임라인 추출 → LLM으로 생성한다. **#2는 유튜브 글을 JSON에 넣지 않는다.**
 - 대신 `title`/`subject`/`round`/블록별 `tags`·`difficulty`를 충실히 채워 두면 그 LLM 글의 품질이 올라간다.
+
+## 다음 단계: 05 번들 (deck.html 슬라이드 · 리모션 _series · review.json)
+- 이 lesson JSON(04)은 `scripts/bundle.py` + `build-deck` 스킬의 입력이 되어 `05/<회차>/` 번들을 만든다.
+- 화면 슬라이드는 밝은 **deck.html**(1920×1080), 텍스트/음성은 이 lesson JSON, 발음은 `explanation_speech`/`narration_*`.
+- 번들 폴더·`review.json`·리모션 `_series` 스키마·씬 1:1 규약은 [`pipeline-output-structure.md`](./pipeline-output-structure.md), 슬라이드 집필 규약은 [`deck-conventions.md`](./deck-conventions.md).
