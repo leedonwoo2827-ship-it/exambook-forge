@@ -21,8 +21,26 @@
   });
 
   const pgs = [...deck.querySelectorAll('.pg')];
-  const slideW = () => (slides[0] ? slides[0].getBoundingClientRect().width : deck.clientWidth) || 1;
-  const idx = () => Math.round(deck.scrollLeft / slideW());
+
+  // 화면 미리보기 전용: 창이 1920 보다 좁으면 통째로 축소해 가로형 한 장이 다 보이게 한다.
+  // 캡처(#3)는 뷰포트가 정확히 1920×1080 이라 배율 1 — 캡처 결과에는 영향이 없다.
+  function fit() {
+    const z = Math.min(1, window.innerWidth / 1920);
+    document.body.style.zoom = z >= 1 ? '' : z;
+  }
+  addEventListener('resize', fit);
+  fit();
+
+  // zoom 이 걸리면 getBoundingClientRect 와 scrollLeft 의 단위가 어긋난다 →
+  // 둘 다 레이아웃 좌표인 offsetLeft 로 현재 슬라이드를 찾는다.
+  const idx = () => {
+    let best = 0, min = Infinity;
+    slides.forEach((s, i) => {
+      const d = Math.abs(s.offsetLeft - deck.scrollLeft);
+      if (d < min) { min = d; best = i; }
+    });
+    return best;
+  };
 
   function go(i) {
     i = Math.max(0, Math.min(slides.length - 1, i));
@@ -67,5 +85,5 @@
 
   sync();
   const jump = parseInt(location.hash.slice(1), 10);
-  if (jump) { deck.scrollLeft = (jump - 1) * slideW(); setTimeout(sync, 60); }
+  if (jump && slides[jump - 1]) { deck.scrollLeft = slides[jump - 1].offsetLeft; setTimeout(sync, 60); }
 })();

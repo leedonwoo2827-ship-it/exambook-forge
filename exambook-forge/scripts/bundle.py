@@ -70,6 +70,35 @@ _CODE = re.compile(r"`([^`]+)`")
 _BULLET = re.compile(r"^([-*•]|\d+[.)])\s+")
 _SQLISH = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|WITH)\b", re.I)
 
+# lesson 의 SQL 은 `sql` 필드도 코드펜스도 없이 발문/지문에 맨 텍스트로 들어온다.
+# (m01 기준 22문항) → 아래 규칙으로 찾아내 <pre class="sql"> 로 렌더한다.
+_SQL_START = re.compile(r"^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|WITH|MERGE|TRUNCATE)\b", re.I)
+_SQL_CONT = re.compile(
+    r"^\s*(FROM|WHERE|GROUP\s+BY|ORDER\s+BY|HAVING|UNION|MINUS|INTERSECT|JOIN|LEFT|RIGHT"
+    r"|INNER|FULL|CROSS|OUTER|ON|AND|OR|SET|VALUES|START\s+WITH|CONNECT\s+BY|[(),])", re.I)
+# 키워드로 시작해도 FROM/VALUES/SET 나 세미콜론이 없으면 SQL 문이 아니라 산문이다
+# ("SELECT 절은 ~ 이다" 같은 해설 문장이 코드블록이 되는 것을 막는다).
+_SQL_CONFIRM = re.compile(r"\b(FROM|VALUES|SET)\b|;", re.I)
+
+
+def _sql_run(lines: list[str], i: int) -> tuple[int, str] | None:
+    """lines[i] 부터 이어지는 SQL 문 덩어리를 찾아 (다음 인덱스, 코드) 반환. 아니면 None."""
+    if not _SQL_START.match(lines[i]):
+        return None
+    buf: list[str] = []
+    j = i
+    while j < len(lines):
+        ln = lines[j]
+        if not ln.strip():
+            break
+        if j == i or _SQL_START.match(ln) or _SQL_CONT.match(ln) or ln[:1] in " \t":
+            buf.append(ln.rstrip())
+            j += 1
+        else:
+            break
+    code = "\n".join(buf).strip()
+    return (j, code) if _SQL_CONFIRM.search(code) else None
+
 
 def _md_inline(s: str) -> str:
     """인라인 마크다운(**볼드**·`코드`)만 HTML 로. 단일 `*`(SELECT *)는 보존."""
@@ -95,6 +124,8 @@ def _fallback_speech(block_html: str) -> str:
 
     비워두면 렌더러가 heading("11번 문제 (2/6)")을 그대로 읽어버린다.
     """
+    if "<figure" in block_html:
+        return "그림을 확인해 보세요."
     if "<table" in block_html:
         return "표를 확인해 보세요."
     if 'pre class="sql"' in block_html:
@@ -140,6 +171,12 @@ def md_blocks(text: str) -> list[tuple[str, str]]:
             out.append((_md_table(buf), ""))
             continue
 
+        run = _sql_run(lines, i)                                  # 맨 텍스트 SQL
+        if run:
+            i, code = run
+            out.append((f'<pre class="sql">{html.escape(code)}</pre>', ""))
+            continue
+
         if _BULLET.match(st):                                     # 목록
             buf = []
             while i < len(lines) and _BULLET.match(lines[i].strip()):
@@ -153,6 +190,8 @@ def md_blocks(text: str) -> list[tuple[str, str]]:
         while i < len(lines):
             cur = lines[i].strip()
             if not cur or cur.startswith(("|", "```")) or _BULLET.match(cur):
+                break
+            if buf and _sql_run(lines, i):
                 break
             buf.append(cur)
             i += 1
@@ -224,8 +263,31 @@ def _choices_speech(choices: list) -> str:
                     for i, c in enumerate(choices))
 
 
-def build_slides(lesson: dict) -> list[Slide]:
+_XML_DECL = re.compile(r"^\s*<\?xml[^>]*\?>\s*")
+
+
+def _figure_blocks(assets_dirs: list[Path], names: list) -> list[Block]:
+    """문항의 assets(SVG 파일명) → 인라인 <figure> 블록.
+
+    파일 참조가 아니라 SVG 본문을 그대로 심는다(캡처가 file:// 로 열려도 항상 그려지게).
+    """
+    out: list[Block] = []
+    for a in names or []:
+        name = str(a.get("name") if isinstance(a, dict) else a)
+        if not name.endswith(".svg"):
+            name += ".svg"
+        path = next((d / name for d in assets_dirs if (d / name).exists()), None)
+        if path is None:
+            print(f"[warn] 도식 파일을 찾지 못했습니다: {name}")
+            continue
+        svg = _XML_DECL.sub("", path.read_text(encoding="utf-8")).strip()
+        out.append(_blk(f'<figure class="diagram">{svg}</figure>'))
+    return out
+
+
+def build_slides(lesson: dict, assets_dirs: list[Path] | None = None) -> list[Slide]:
     """lesson → 슬라이드 목록(아직 페이지 분할 전, 문항당 문제 1 + 해설 1)."""
+    assets_dirs = assets_dirs or []
     round_label = _strip_brand(lesson.get("round") or lesson.get("title", ""))
     slides: list[Slide] = []
 
@@ -254,7 +316,12 @@ def build_slides(lesson: dict) -> list[Slide]:
         ai = b.get("answer_index")
 
         # ── 문제 슬라이드: 발문 고정, 지문/SQL/표 → 블록, 보기는 통째로 한 덩어리
-        q_blocks: list[Block] = []
+        # 발문 안에 SQL·표가 딸려오는 문항이 있다(13·25번 등) → 첫 문단만 발문으로 고정하고
+        # 나머지는 흐름 블록으로 내려 페이지 분할 대상이 되게 한다.
+        q_parts = md_blocks(b.get("question", "")) or [("<p></p>", "")]
+        qtext_html, qtext_speech = q_parts[0]
+        qtext_html = re.sub(r"^<p>|</p>$", "", qtext_html)
+        q_blocks: list[Block] = [_blk(h_, sp) for h_, sp in q_parts[1:]]
         if b.get("passage"):
             for h_, sp in md_blocks(b["passage"]):
                 q_blocks.append(_blk(f'<div class="passage">{h_}</div>', sp))
@@ -266,6 +333,7 @@ def build_slides(lesson: dict) -> list[Slide]:
             rows = "".join("<tr>" + "".join(f"<td>{_md_inline(str(c))}</td>" for c in r) + "</tr>"
                            for r in t.get("rows", []))
             q_blocks.append(_blk(f"<table><thead><tr>{cols}</tr></thead><tbody>{rows}</tbody></table>"))
+        q_blocks += _figure_blocks(assets_dirs, b.get("assets"))   # 도식은 지문 뒤·보기 앞
         if choices:
             q_blocks.append(_blk(_choices_ul(choices), _choices_speech(choices), keep=True))
 
@@ -273,10 +341,11 @@ def build_slides(lesson: dict) -> list[Slide]:
             kind="problem", number=n, heading=f"{n}번 문제",
             chip=f"{round_label} {n}번",
             fixed=[f'<div class="qnum">{n}번 문제</div>',
-                   f'<div class="qtext">{_md_inline(b.get("question", ""))}</div>'],
+                   f'<div class="qtext">{qtext_html}</div>'],
             blocks=q_blocks,
             narration=b.get("question", ""),
-            speech=to_speech(b.get("narration_question") or b.get("question", ""))))
+            # 낭독은 발문 문장만 — SQL 을 그대로 읽으면 못 알아듣는다.
+            speech=to_speech(b.get("narration_question") or "") or qtext_speech))
 
         # ── 해설 슬라이드: 정답 배지 + 정답 보기만 고정(오답 3개는 빼서 높이 확보), 해설은 분할
         ans = b.get("answer") or (circled(ai) if isinstance(ai, int) else "")
@@ -600,9 +669,11 @@ def build_series(lesson: dict, scenes: list[dict]) -> dict:
         "theme": lesson.get("theme", ""),
         "voice": lesson.get("voice", "F2"),
         "speed": lesson.get("speed", 1.05),
+        # number 는 반드시 남긴다 — #3 가 카운트다운 배경으로 "그 문항의 마지막 문제 슬라이드"를
+        # 찾을 때 쓰는 키다. 빠지면 전부 None 으로 뭉쳐 번들 마지막 문제가 배경이 된다.
         "scenes": [
             {k: s[k] for k in (
-                "scene", "kind", "capture", "heading", "narration", "narration_text",
+                "scene", "kind", "capture", "number", "heading", "narration", "narration_text",
                 "image", "audio", "durSec", "startSec")
              if k in s} | ({"countdown_seconds": s["countdown_seconds"]} if "countdown_seconds" in s else {})
             for s in scenes
@@ -671,7 +742,9 @@ def write_bundle(lesson: dict, code: str, book: Path, do_paginate: bool) -> None
     for sub in BUNDLE_SUBDIRS:
         (bundle / sub).mkdir(parents=True, exist_ok=True)
 
-    slides = build_slides(lesson)
+    assets_dirs = [d for d in (book / "04" / "assets", book / "02" / "assets",
+                               book / "03" / "assets") if d.exists()]
+    slides = build_slides(lesson, assets_dirs)
     warns: list[str] = []
     if do_paginate:
         with tempfile.TemporaryDirectory(prefix="deck-measure-") as td:
