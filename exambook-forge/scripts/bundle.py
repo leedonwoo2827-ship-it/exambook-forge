@@ -208,6 +208,7 @@ class Block:
     speech: str = ""             # 이 블록을 낭독할 문장(표/SQL 은 읽지 않으므로 빈 값)
     fallback: str = ""           # speech 가 없을 때 그 페이지에 쓸 짧은 안내 낭독
     keep: bool = False           # True 면 절대 버리지 않는다(보기 4개)
+    full: bool = False           # 2·3단 배치에서도 전폭을 쓴다(보기)
 
 
 @dataclass
@@ -216,12 +217,15 @@ class Slide:
     heading: str
     number: int | None = None
     classes: str = "content"
-    fixed: list[str] = field(default_factory=list)   # 페이지마다 상단에 반복되는 HTML
+    fixed: list[str] = field(default_factory=list)   # 1페이지 상단 고정 HTML
+    cont_idx: list[int] = field(default_factory=list)  # 그중 이어지는 페이지에도 반복할 것의 인덱스
     blocks: list[Block] = field(default_factory=list)
     chip: str = ""                                   # 우상단 칩(출처 등)
     narration: str = ""                              # 자막/표시용 원문
     speech: str = ""                                 # 낭독용(비면 blocks 에서 생성)
     shrink: int = 0                                  # 0=원본 · 1=dense · 2=dense2(축소)
+    cols: int = 1                                    # 본문 단 수(1·2·3) — 긴 표/지문을 옆으로 편다
+    ch2: bool = False                                # 보기를 2×2 로 (글씨 안 줄이고 높이 절반)
     page: int = 1
     pages: int = 1
 
@@ -254,8 +258,8 @@ def _choices_ul(choices: list, correct_index: int | None = None) -> str:
     return f'<ul class="choices">\n{lis}\n</ul>'
 
 
-def _blk(html_: str, speech: str = "", keep: bool = False) -> Block:
-    return Block(html_, speech, _fallback_speech(html_), keep)
+def _blk(html_: str, speech: str = "", keep: bool = False, full: bool = False) -> Block:
+    return Block(html_, speech, _fallback_speech(html_), keep, full)
 
 
 def _choices_speech(choices: list) -> str:
@@ -282,6 +286,33 @@ def _figure_blocks(assets_dirs: list[Path], names: list) -> list[Block]:
             continue
         svg = _XML_DECL.sub("", path.read_text(encoding="utf-8")).strip()
         out.append(_blk(f'<figure class="diagram">{svg}</figure>'))
+    return out
+
+
+_HEAVY = ("<table", "<pre", "<figure")
+
+
+def _glue_labels(blocks: list[Block]) -> list[Block]:
+    """'[상품] (분류코드)' 같은 짧은 라벨 문단을 뒤따르는 표/코드/그림과 **한 블록으로** 합친다.
+
+    페이지나 단이 갈릴 때 라벨만 떨어져 나가면 라벨 한 줄짜리 빈 화면이 생긴다.
+    같은 페이지에 두는 것만으로는 부족하고(단 흐름이 갈라놓는다) DOM 을 합쳐야 한다.
+    """
+    out: list[Block] = []
+    i = 0
+    while i < len(blocks):
+        b = blocks[i]
+        nxt = blocks[i + 1] if i + 1 < len(blocks) else None
+        plain = not any(t in b.html for t in _HEAVY) and "<ul" not in b.html
+        short = len(re.sub(r"<[^>]+>", "", b.html).strip()) <= 60
+        if plain and short and nxt is not None and any(t in nxt.html for t in _HEAVY):
+            out.append(Block(b.html + nxt.html,
+                             " ".join(x for x in (b.speech, nxt.speech) if x),
+                             nxt.fallback or b.fallback))
+            i += 2
+            continue
+        out.append(b)
+        i += 1
     return out
 
 
@@ -321,7 +352,10 @@ def build_slides(lesson: dict, assets_dirs: list[Path] | None = None) -> list[Sl
         q_parts = md_blocks(b.get("question", "")) or [("<p></p>", "")]
         qtext_html, qtext_speech = q_parts[0]
         qtext_html = re.sub(r"^<p>|</p>$", "", qtext_html)
-        q_blocks: list[Block] = [_blk(h_, sp) for h_, sp in q_parts[1:]]
+        # 발문에서 떨어져 나온 블록은 .qbody 로 감싼다 — 안 감싸면 맨 <p>/<ul> 이라
+        # 슬라이드 폰트 규칙이 안 걸려 16px 로 쪼그라든다.
+        q_blocks: list[Block] = [_blk(f'<div class="qbody">{h_}</div>', sp)
+                                 for h_, sp in q_parts[1:]]
         if b.get("passage"):
             for h_, sp in md_blocks(b["passage"]):
                 q_blocks.append(_blk(f'<div class="passage">{h_}</div>', sp))
@@ -334,14 +368,18 @@ def build_slides(lesson: dict, assets_dirs: list[Path] | None = None) -> list[Sl
                            for r in t.get("rows", []))
             q_blocks.append(_blk(f"<table><thead><tr>{cols}</tr></thead><tbody>{rows}</tbody></table>"))
         q_blocks += _figure_blocks(assets_dirs, b.get("assets"))   # 도식은 지문 뒤·보기 앞
+        q_blocks = _glue_labels(q_blocks)
         if choices:
-            q_blocks.append(_blk(_choices_ul(choices), _choices_speech(choices), keep=True))
+            q_blocks.append(_blk(_choices_ul(choices), _choices_speech(choices),
+                                 keep=True, full=True))   # 보기는 단을 나누지 않는다
 
         slides.append(Slide(
             kind="problem", number=n, heading=f"{n}번 문제",
             chip=f"{round_label} {n}번",
             fixed=[f'<div class="qnum">{n}번 문제</div>',
                    f'<div class="qtext">{qtext_html}</div>'],
+            cont_idx=[],          # 이어지는 페이지엔 발문을 반복하지 않는다
+                                  # (뚫린 카드 테두리가 "계속"을 보여주고, 그만큼 내용이 더 들어간다)
             blocks=q_blocks,
             narration=b.get("question", ""),
             # 낭독은 발문 문장만 — SQL 을 그대로 읽으면 못 알아듣는다.
@@ -353,11 +391,13 @@ def build_slides(lesson: dict, assets_dirs: list[Path] | None = None) -> list[Sl
                  f'<div class="answer-badge">정답 {html.escape(str(ans))}</div>']
         if isinstance(ai, int) and 0 <= ai < len(choices):
             fixed.append(f'<ul class="choices">{_choice_li(ai, str(choices[ai]), True)}</ul>')
-        e_blocks = [_blk(f'<div class="explain">{h_}</div>', sp)
-                    for h_, sp in md_blocks(b.get("explanation", ""))]
+        e_blocks = _glue_labels([_blk(f'<div class="explain">{h_}</div>', sp)
+                                 for h_, sp in md_blocks(b.get("explanation", ""))])
         slides.append(Slide(
             kind="answer", number=n, heading=f"{n}번 · 정답 {ans}",
-            fixed=fixed, blocks=e_blocks,
+            # 해설은 카드가 없어 뚫을 테두리가 없다 → 정답 배지만 이어지는 페이지에 남긴다
+            fixed=fixed, cont_idx=[1] if len(fixed) > 1 else [],
+            blocks=e_blocks,
             narration=b.get("explanation", ""),
             speech=to_speech(b.get("narration_answer") or b.get("explanation_speech")
                              or b.get("explanation", ""))))
@@ -367,16 +407,30 @@ def build_slides(lesson: dict, assets_dirs: list[Path] | None = None) -> list[Sl
 # ============================================================ deck.html 렌더
 def _slide_html(s: Slide, si: int) -> str:
     cls = s.classes + ("", " dense", " dense dense2")[min(s.shrink, 2)]
+    if s.cols > 1:
+        cls += f" cols{min(s.cols, 3)}"
+    if s.ch2:
+        cls += " ch2"
+    if s.pages > 1:
+        cls += " paged"
     parts = [f'  <section class="slide {cls}">']
     if s.chip:
         parts.append(f'    <span class="source-chip">{html.escape(s.chip)}</span>')
     if s.pages > 1:
         parts.append(f'    <span class="page-chip">{s.page} / {s.pages}</span>')
     body = [f'      <div data-fixed>{h_}</div>' for h_ in s.fixed]
-    body += [f'      <div data-fid="{si}-{bi}">{b.html}</div>' for bi, b in enumerate(s.blocks)]
+    if s.blocks:
+        flow = "".join(f'<div data-fid="{si}-{bi}"{" data-full" if b.full else ""}>{b.html}</div>'
+                       for bi, b in enumerate(s.blocks))
+        body.append(f'      <div class="flow">{flow}</div>')
     inner = "\n".join(body)
     if s.kind == "problem":
-        parts.append(f'    <div class="qcard">\n{inner}\n    </div>')
+        # 이어지는 쪽 테두리를 뚫어 "다음 장으로 계속"을 보여준다(가운데 페이지는 위아래 다).
+        card = "qcard"
+        if s.pages > 1:
+            card += " open-top" if s.page > 1 else ""
+            card += " open-bottom" if s.page < s.pages else ""
+        parts.append(f'    <div class="{card}">\n{inner}\n    </div>')
     else:
         parts.append(inner)
     parts.append("  </section>")
@@ -420,7 +474,8 @@ MEASURE_JS = r"""
     const foot = s.querySelector('.s-foot');
     // 푸터는 absolute 라 흐름 높이에 안 잡히지만 본문을 가린다 → 안전영역에서 뺀다.
     const footH = foot ? foot.getBoundingClientRect().height + 44 + 24 : 0;
-    let avail = s.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - footH;
+    const availAll = s.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - footH;
+    let avail = availAll;
     const card = s.querySelector('.qcard');
     if (card) {
       const c = getComputedStyle(card);
@@ -431,9 +486,15 @@ MEASURE_JS = r"""
       const e = getComputedStyle(el);
       return el.getBoundingClientRect().height + px(e.marginTop) + px(e.marginBottom);
     };
+    // 실제로 쓴 높이 — 2·3단 배치에서는 블록 높이의 합과 다르므로 직접 잰다.
+    // (칩/푸터는 absolute 라 흐름에서 빠진다)
+    const used = [...s.children]
+      .filter(el => !el.classList.contains('s-foot') && !el.classList.contains('source-chip')
+                 && !el.classList.contains('page-chip'))
+      .reduce((a, el) => a + meas(el), 0);
     return {
-      si, avail,
-      fixed: [...s.querySelectorAll('[data-fixed]')].reduce((a, el) => a + meas(el), 0),
+      si, avail, availAll, used,
+      fixed: [...s.querySelectorAll('[data-fixed]')].map(meas),
       blocks: Object.fromEntries([...s.querySelectorAll('[data-fid]')].map(el => [el.dataset.fid, meas(el)])),
       over: Math.max(0, s.scrollHeight - s.clientHeight),
     };
@@ -442,59 +503,100 @@ MEASURE_JS = r"""
 """
 
 
-def measure(html_text: str, workdir: Path) -> list[dict] | None:
-    """deck HTML 을 헤드리스 크로미움으로 열어 슬라이드별 안전영역·블록 높이를 잰다."""
+def measure_many(html_texts: list[str], workdir: Path) -> list[list[dict]] | None:
+    """여러 후보 deck HTML 을 브라우저 한 번으로 재서 각각의 슬라이드 측정값을 돌려준다.
+
+    배치(한 장에 담기) 후보를 여러 개 시도하므로, 매번 크로미움을 띄우면 그것만으로 느려진다.
+    """
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
         return None
-    page_file = workdir / "_measure.html"
-    page_file.write_text(html_text, encoding="utf-8")
     for asset in ("_deck.css", "_deck.js"):
         src = DECK_ASSETS / asset
         if src.exists():
             shutil.copy2(src, workdir / asset)
+    out: list[list[dict]] = []
     with sync_playwright() as p:
         browser = p.chromium.launch()
         pg = browser.new_page(viewport={"width": 1920, "height": 1080}, device_scale_factor=1)
-        pg.goto(page_file.as_uri(), wait_until="networkidle")
-        try:
-            pg.evaluate("document.fonts && document.fonts.ready")
-        except Exception:
-            pass
-        pg.wait_for_timeout(250)
-        data = pg.evaluate(MEASURE_JS)
+        for i, text in enumerate(html_texts):
+            f = workdir / f"_measure{i}.html"
+            f.write_text(text, encoding="utf-8")
+            pg.goto(f.as_uri(), wait_until="networkidle")
+            try:
+                pg.evaluate("document.fonts && document.fonts.ready")
+            except Exception:
+                pass
+            pg.wait_for_timeout(200)
+            out.append(pg.evaluate(MEASURE_JS))
         browser.close()
-    return data
+    return out
+
+
+def measure(html_text: str, workdir: Path) -> list[dict] | None:
+    got = measure_many([html_text], workdir)
+    return got[0] if got else None
 
 
 SAFETY = 24.0   # 측정 오차·마진 겹침 여유(px)
 
 
+def _fits(mm: dict) -> bool:
+    """이 슬라이드 내용이 안전영역 안에 다 들어갔는가(실측 사용 높이 기준)."""
+    return float(mm.get("used", 0)) <= float(mm.get("availAll", 0)) - SAFETY
+
+
 def _paginate_one(s: Slide, m: dict) -> list[Slide]:
     """슬라이드 1장 → 안전영역에 맞춘 페이지 목록. 발문/정답은 페이지마다 반복."""
-    capacity = m["avail"] - m["fixed"] - SAFETY
+    fh = [float(x) for x in m["fixed"]]
+    # 이어지는 페이지는 고정부를 (거의) 반복하지 않으므로 그만큼 더 담을 수 있다.
+    cap_first = m["avail"] - sum(fh) - SAFETY
+    cap_cont = m["avail"] - sum(fh[i] for i in s.cont_idx if i < len(fh)) - SAFETY
     heights = {k: float(v) for k, v in m["blocks"].items()}
-    if capacity <= 0 or not s.blocks:
+    if cap_first <= 0 or not s.blocks:
         return [s]
+
+    # "[상품] (분류코드)" 같은 짧은 라벨이 뒤따르는 표와 떨어지면 라벨 한 줄짜리 빈 페이지가 된다
+    # → 짧은 문단은 다음 블록과 한 덩어리로 묶어서 페이지에 넣는다.
+    GLUE = 160.0
+    units: list[tuple[Block, float]] = []
+    bi = 0
+    while bi < len(s.blocks):
+        h = heights.get(f"{m['si']}-{bi}", 0.0)
+        b = s.blocks[bi]
+        if h < GLUE and bi + 1 < len(s.blocks) and not b.full and not s.blocks[bi + 1].full:
+            nxt = s.blocks[bi + 1]
+            bi += 1
+            h += heights.get(f"{m['si']}-{bi}", 0.0)
+            b = Block(b.html + nxt.html, " ".join(x for x in (b.speech, nxt.speech) if x),
+                      nxt.fallback or b.fallback, b.keep or nxt.keep)
+        units.append((b, h))
+        bi += 1
+
+    # 나눠야 할 만큼 덩어리가 많으면 페이지 안에서도 2단으로 흘려 장수를 줄인다.
+    s.cols = 2 if len(units) >= 3 else 1
+    budget = 0.85 if s.cols > 1 else 1.0     # 단이 좁아지면 블록이 세로로 늘어나는 만큼 보수적으로
 
     pages: list[list[Block]] = []
     cur: list[Block] = []
     used = 0.0
-    for bi, blk in enumerate(s.blocks):
-        h = heights.get(f"{m['si']}-{bi}", 0.0)
-        if cur and used + h > capacity:
+    for unit, h in units:
+        cap = (cap_first if not pages else cap_cont) * s.cols * budget
+        if cur and used + h > cap:
             pages.append(cur)
             cur, used = [], 0.0
-        cur.append(blk)
+        cur.append(unit)
         used += h
     if cur:
         pages.append(cur)
 
     out: list[Slide] = []
     for pi, blks in enumerate(pages):
+        fixed = list(s.fixed) if pi == 0 else [s.fixed[i] for i in s.cont_idx if i < len(s.fixed)]
         p = Slide(kind=s.kind, heading=s.heading, number=s.number, classes=s.classes,
-                  fixed=list(s.fixed), blocks=blks, chip=s.chip,
+                  fixed=fixed, cont_idx=s.cont_idx, blocks=blks, chip=s.chip,
+                  shrink=s.shrink, cols=s.cols, ch2=s.ch2,
                   page=pi + 1, pages=len(pages))
         if len(pages) > 1:
             p.heading = f"{s.heading} ({pi + 1}/{len(pages)})"
@@ -571,14 +673,38 @@ def paginate(lesson: dict, slides: list[Slide], workdir: Path,
     Returns (슬라이드 목록, 경고 메시지들).
     """
     warns: list[str] = []
-    m = measure(render_deck(lesson, slides), workdir)
-    if m is None:
+    # 한 장에 담는 것이 최우선(퀴즈는 발문과 보기를 같이 봐야 한다). 덜 손대는 배치부터 시도한다:
+    # 원본 → 보기 2×2 → 축소 → 2단 → 3단. 다 안 되면 그때 페이지를 나눈다.
+    # (보기 2×2 는 글씨를 안 줄이고 세로 512px 를 절반으로 줄이므로 축소보다 먼저 쓴다)
+    TIERS = [(1, 0, False), (1, 0, True), (1, 1, True), (2, 0, True), (2, 1, True), (3, 1, True)]
+    candidates = []
+    for cols, shrink, ch2 in TIERS:
+        for s in slides:
+            s.cols, s.shrink, s.ch2 = cols, shrink, ch2
+        candidates.append(render_deck(lesson, slides))
+    for s in slides:
+        s.cols, s.shrink, s.ch2 = 1, 0, False
+
+    measured = measure_many(candidates, workdir)
+    if measured is None:
         return slides, ["playwright 가 없어 페이지 분할을 건너뛰었습니다 "
                         "(pip install playwright && python -m playwright install chromium)"]
+    m = measured[0]
+
+    fit_at: dict[int, tuple[int, int, bool]] = {}
+    for tier, mt in zip(TIERS, measured):
+        for i, mm in enumerate(mt):
+            if i not in fit_at and _fits(mm):
+                fit_at[i] = tier
 
     out: list[Slide] = []
-    for s, mm in zip(slides, m):
-        out.extend(_paginate_one(s, mm))
+    for i, (s, mm) in enumerate(zip(slides, m)):
+        if i in fit_at:
+            s.cols, s.shrink, s.ch2 = fit_at[i]
+            out.append(s)
+        else:
+            s.ch2 = True                    # 나눠야 한다면 보기는 2×2 로 둔다(장수를 줄인다)
+            out.extend(_paginate_one(s, measured[1][i]))   # ch2 상태의 실측으로 나눈다
 
     for _ in range(max_rounds):
         m = measure(render_deck(lesson, out), workdir) or []
@@ -593,8 +719,8 @@ def paginate(lesson: dict, slides: list[Slide], workdir: Path,
                 moved = s.blocks.pop()               # 3차: 마지막 블록을 다음 페이지로
                 out.insert(i + 1, Slide(
                     kind=s.kind, heading=s.heading, number=s.number, classes=s.classes,
-                    fixed=list(s.fixed), blocks=[moved], chip=s.chip, shrink=2,
-                    narration="", speech=moved.speech))
+                    fixed=list(s.fixed), cont_idx=s.cont_idx, blocks=[moved], chip=s.chip,
+                    shrink=2, cols=s.cols, ch2=s.ch2, narration="", speech=moved.speech))
             elif not s.blocks[0].keep:
                 # 더 쪼갤 수도 줄일 수도 없는 단일 블록(긴 지문/표) — 마지막 수단으로 안내문 대체
                 s.blocks = [Block(f'<div class="trunc-note">{TRUNC_NOTE}</div>',
