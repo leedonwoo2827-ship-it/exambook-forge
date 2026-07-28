@@ -42,6 +42,7 @@ import html
 import json
 import re
 import shutil
+import stat
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -885,10 +886,18 @@ def write_bundle(lesson: dict, code: str, book: Path, do_paginate: bool) -> None
         json.dumps(lesson, ensure_ascii=False, indent=2), encoding="utf-8")  # (부분)lesson 사본
     for asset in ("_deck.css", "_deck.js"):
         a = DECK_ASSETS / asset
-        if a.exists():
-            shutil.copy2(a, src / asset)
-        else:
+        if not a.exists():
             print(f"[warn] 덱 자산 없음: {a}")
+            continue
+        dst = src / asset
+        if dst.exists():
+            # 예전 번들의 자산이 읽기 전용으로 남아 있으면 copy2 가 PermissionError 로
+            # 죽으면서 뒤 회차까지 통째로 멈춘다 → 쓰기 권한을 풀고 덮어쓴다.
+            try:
+                dst.chmod(stat.S_IWRITE | stat.S_IREAD)
+            except OSError:
+                pass
+        shutil.copy2(a, dst)
     (src / "deck.html").write_text(deck_html, encoding="utf-8")
 
     (bundle / "script" / f"{code}_script.json").write_text(
