@@ -147,6 +147,49 @@ th { background: var(--soft); color: var(--brand-ink); font-weight: 800; }
 }
 .s-foot .fl b { color: var(--brand-ink); }
 
+/* ── 본문 마크다운(불릿·표·코드) — bundle.py 가 지문/해설 안에 넣는 블록 ── */
+.passage > *:first-child, .explain > *:first-child { margin-top: 0; }
+.passage p, .explain p { margin: .5em 0; }
+.passage ul, .explain ul { margin: .5em 0; padding-left: 1.1em; }
+.passage li, .explain li { margin: .35em 0; }
+.passage table, .explain table { margin: .6em 0; }
+.passage strong, .explain strong { color: var(--brand-ink); font-weight: 800; }
+code {
+  font-family: "JetBrains Mono", "D2Coding", Consolas, monospace;
+  background: var(--soft); color: var(--brand-ink);
+  border-radius: 8px; padding: .06em .3em; font-size: .92em;
+}
+pre.sql, pre.code {
+  font-family: "JetBrains Mono", "D2Coding", Consolas, monospace; font-size: 34px;
+  background: #0f172a; color: #e2e8f0; border-radius: 20px; padding: 32px; margin: 28px 0 0;
+  white-space: pre-wrap; word-break: break-word; line-height: 1.35;
+}
+.trunc-note { color: var(--muted); font-size: 30px; margin-top: 20px; font-style: italic; }
+
+/* 페이지 분할해도 안 들어가는 슬라이드용 축소 모드 (bundle.py 가 마지막 수단으로 부여).
+   보기 4개는 반드시 한 화면에 다 보여야 하므로 자르는 대신 줄인다. */
+.slide.dense .qcard { padding: 40px; }
+.slide.dense .qcard .qtext { font-size: 44px; }
+.slide.dense .qcard .passage { font-size: 32px; }
+.slide.dense .choices { gap: 16px; margin-top: 32px; }
+.slide.dense .choice { font-size: 34px; padding: 18px 26px; }
+.slide.dense .choice .marker { width: 46px; height: 46px; font-size: 28px; }
+.slide.dense .explain { font-size: 34px; }
+.slide.dense pre.sql, .slide.dense pre.code { font-size: 28px; padding: 24px; }
+.slide.dense table { font-size: 28px; }
+.slide.dense th, .slide.dense td { padding: 12px 16px; }
+
+/* 2단계 축소 — 보기만 남은 페이지처럼 더 쪼갤 수 없을 때 */
+.slide.dense2 .qcard { padding: 32px; }
+.slide.dense2 .qcard .qtext { font-size: 40px; }
+.slide.dense2 .qcard .passage { font-size: 28px; }
+.slide.dense2 .choices { gap: 12px; margin-top: 24px; }
+.slide.dense2 .choice { font-size: 30px; padding: 14px 22px; }
+.slide.dense2 .choice .marker { width: 40px; height: 40px; font-size: 24px; }
+.slide.dense2 .explain { font-size: 30px; }
+.slide.dense2 pre.sql, .slide.dense2 pre.code { font-size: 24px; padding: 20px; }
+.slide.dense2 table { font-size: 24px; }
+
 /* 내비게이션 UI (화면 전용 — 캡처 시 #3가 숨김) */
 .nav { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; z-index: 20; }
 .nav button, #fs {

@@ -15,7 +15,7 @@
     if (s.classList.contains('content') && !s.querySelector('.s-foot')) {
       const f = document.createElement('div');
       f.className = 's-foot';
-      f.innerHTML = `<span class="fl"><b>${title}</b> · EXAM BOOK</span><span class="pg"></span>`;
+      f.innerHTML = `<span class="fl"><b>${title}</b></span><span class="pg"></span>`;
       s.appendChild(f);
     }
   });

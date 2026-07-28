@@ -1,6 +1,6 @@
 ---
 name: build-deck
-description: 회차의 lesson JSON을 pressplay식 밝은 deck.html 슬라이드 + 05/<회차>/ 번들(리모션 _series 대본 + review.json 스켈레톤)로 만들어야 할 때. 일반영상(#3 chodangi-mp4 캡처)과 리모션영상(클로드 데스크탑)의 공통 슬라이드 원본을 집필한다.
+description: 회차의 lesson JSON을 pressplay식 밝은 deck.html 슬라이드 + 05/<회차>/ 번들(리모션 _series 대본 + review.json 스켈레톤)로 만들어야 할 때. bundle.py 가 헤드리스 크로미움으로 높이를 재서 페이지를 나눠 주므로 잘림 없는 슬라이드가 바로 나온다. 일반영상(#3 chodangi-mp4 캡처)과 리모션영상(클로드 데스크탑)의 공통 슬라이드 원본.
 metadata:
   group: 자격시험 파이프라인
   stage: 슬라이드/번들
@@ -10,7 +10,7 @@ metadata:
 # build-deck (deck.html 슬라이드 + 05 번들)
 
 ## When to use
-- 회차 영상을 만들기 직전, `04/lesson_mNN.json`으로부터 편집 가능한 밝은 HTML 슬라이드와
+- 회차 영상을 만들기 직전, `04/lesson_mNN.json`으로부터 밝은 HTML 슬라이드와
   per-회차 번들을 만들 때. 산출물은 #3(일반영상 캡처)와 리모션(키네틱)의 공통 입력.
 
 ## 입력
@@ -19,29 +19,38 @@ metadata:
   `${CLAUDE_PLUGIN_ROOT}/references/pipeline-output-structure.md`.
 
 ## 절차
-1. **번들 골격 생성**:
-   `python "${CLAUDE_PLUGIN_ROOT}/scripts/bundle.py" --book "<book>" --round m01`
-   → `05/m01/{source,images,audio,subtitles,script,draft}` 생성,
-     `source/`에 `lesson_m01.json` 복사 + `_deck.css`/`_deck.js` 복사,
-     `script/m01_script.json`(리모션 _series) + `review.json` 스켈레톤 생성,
-     `source/deck.html` **스텁**(표지/섹션/문제/해설 슬롯) 생성.
-2. **deck.html 집필**: 스텁을 열어 `deck-conventions.md`에 따라 슬라이드를 채운다.
-   - 슬라이드 1장 = 씬 1개, 순서 = `review.json.slides[]` 순서(= `slide_%02d.png`/`scene_%02d.wav` 인덱스).
-   - 문제 씬(`.qcard`: `.qnum`·`.qtext`·`passage`/`pre.sql`/`table`/`figure`·`.choices`) →
-     해설 씬(`.answer-badge`·`.choice.correct`·`.explain`) 순. 과목 바뀌면 섹션 슬라이드.
-   - **밝은 배경 유지**, 원문자 직접입력 금지(`.choice .marker` 숫자), SVG는 `svg-diagram` 산출을 `figure>svg`로 인라인.
-   - deck 텍스트 = **자막 원문 표기**. 발음(낭독)은 `review.json.slides[].narration_text`/lesson `explanation_speech`가 담당(deck엔 안 넣음).
-3. **review.json 확인**: 슬라이드 수 = 씬 수 = deck 슬라이드 수가 일치하는지, `heading`/`narration`/`narration_text`가 채워졌는지 확인(시간·비디오 필드는 #3가 채움).
-4. **핸드오프 안내**:
-   - 일반영상: #3에서 `render.bat m01` → deck 캡처 + Supertonic3 + ffmpeg → `05/m01/draft/m01.static.mp4`.
-   - 리모션: 클로드 데스크탑에서 `05/m01/script/m01_script.json`으로 `draft/m01.motion.mp4` 생성.
+1. **번들 생성** (이 한 줄이 전부 — deck.html 을 손으로 집필하지 않는다):
+   `python "${CLAUDE_PLUGIN_ROOT}/scripts/bundle.py" --book "<book>" --round m01 --chunk 10`
+   → `05/m01-1..m01-5/{source,images,audio,subtitles,script,draft}` 생성,
+     `source/`에 **페이지 분할이 끝난 `deck.html`** + `lesson_*.json` 복사 + `_deck.css`/`_deck.js`,
+     `script/<회차>_script.json`(리모션 _series) + `review.json`.
+   - 첫 실행 전 1회: `pip install playwright && python -m playwright install chromium`
+     (없으면 분할을 건너뛰고 경고 — 슬라이드가 잘린다).
+2. **결과 확인**: `05/<회차>/source/deck.html` 을 브라우저로 열어 넘겨 본다.
+   실행 로그의 `[warn]` 이 없으면 잘린 슬라이드가 없다는 뜻.
+   `[warn] 슬라이드 N 이 …px 넘칩니다` 가 뜨면 **lesson 의 해당 지문/해설을 줄여야 한다**
+   (분할·축소로도 안 들어가는 분량).
+3. **핸드오프**:
+   - 일반영상: #3에서 `render.bat m01-1` → deck 캡처 + Supertonic3 + ffmpeg → `05/m01-1/draft/m01-1.static.mp4`.
+   - 리모션: 클로드 데스크탑에서 `05/m01-1/script/m01-1_script.json`으로 `draft/*.motion.mp4`.
 
-## 산출
-- `05/m01/source/deck.html` (+ `_deck.css`/`_deck.js`, `lesson_m01.json` 복사)
-- `05/m01/script/m01_script.json` (리모션 _series)
-- `05/m01/review.json` (스켈레톤 — #3/리모션이 나머지 채움)
+## bundle.py 가 자동으로 하는 것
+- **페이지 분할**: 헤드리스 크로미움으로 블록별 실제 높이를 재서 안전영역(1080 − 패딩 − 푸터)에
+  맞게 페이지를 나눈다. 발문/정답 배지는 페이지마다 상단 반복, **보기 4개는 절대 쪼개지 않는다**.
+  그래도 넘치면 `.dense` → `.dense2` 축소, 마지막 수단으로만 잘라내고 안내문을 남긴다.
+- **마크다운 렌더**: question/passage/explanation 안의 `**볼드**`·`` `코드` ``·불릿·번호목록·
+  표(`| a | b |`)·코드펜스(```sql)를 HTML 로. 구조화 `table`/`sql` 필드도 `<table>`/`<pre class="sql">`.
+- **씬 생성**: `script.json`/`review.json` 의 씬을 **분할된 슬라이드에서 파생**시킨다
+  (→ `.slide` 수 == capture 씬 수가 항상 성립). 카운트다운은 그 문항의 마지막 문제 페이지 뒤.
+- **페이지별 낭독 분배**: 발문 낭독은 1페이지에 통째로, 이후 페이지는 그 페이지에 보이는
+  지문·보기를 읽는다. 표/SQL 뿐인 페이지는 짧은 안내문("표를 확인해 보세요.").
+  해설은 손으로 다듬은 `explanation_speech` 를 표시 분량 비율로 문장 단위 분배.
+- **브랜딩 제거**: 표지 eyebrow·푸터의 "EXAM BOOK", `round` 의 "자사 " 접두를 뺀다.
 
 ## 주의
-- 캡처/TTS/자막/ffmpeg(일반영상)와 리모션 렌더는 이 스킬 범위 밖. 여기선 deck.html + 번들 골격까지.
-- 슬라이드 수와 씬 수가 어긋나면 캡처-오디오 인덱스가 밀린다 — 반드시 1:1 유지.
+- 캡처/TTS/자막/ffmpeg(일반영상)와 리모션 렌더는 이 스킬 범위 밖.
+- `deck.html` 을 손으로 고쳤다면 `bundle.py` 를 다시 돌릴 때 덮어써진다(항상 재생성).
+  내용을 바꾸려면 `04/lesson_mNN.json` 을 고치고 다시 생성하는 게 원칙.
+- 슬라이드 수와 씬 수가 어긋나면 #3 `render.bat` 이 **중단**한다(이미지-음성이 밀린 영상 방지).
+  bundle.py 가 항상 둘을 같이 만들므로, 어긋났다면 deck.html 만 따로 손댄 경우다.
 - `04/lesson_mNN.json`은 계속 #3의 대본/음성 컴파일 입력으로 유지된다(deck은 화면, lesson은 텍스트/음성).
