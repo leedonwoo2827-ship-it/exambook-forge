@@ -171,12 +171,35 @@ th { background: var(--soft); color: var(--brand-ink); font-weight: 800; }
   background: var(--soft); color: var(--brand-ink); border-radius: 999px;
   padding: 12px 28px; font-weight: 800; font-size: 30px;
 }
-.explain { margin-top: 36px; font-size: 40px; line-height: 1.55; color: var(--ink); }
+/* 좌상단 다중 칩(회차·번호 / 과목 / 난이도). absolute 라 흐름·페이지분할에 영향 없음 */
+.chips {
+  position: absolute; top: 40px; left: var(--pad);
+  display: flex; flex-wrap: wrap; gap: 14px; z-index: 5;
+}
+.chips .chip {
+  display: inline-block; padding: 10px 26px; border-radius: 999px;
+  background: var(--soft); color: var(--brand-ink); font-weight: 800; font-size: 28px;
+  border: 2px solid color-mix(in srgb, var(--brand) 22%, transparent);
+}
+/* 두 번째 칩(과목)부터는 옅게 — 회차·번호를 강조 */
+.chips .chip:not(:first-child) { background: #fff; color: var(--muted); }
 
-/* 카운트다운(생각할 시간) */
-.slide.countdown { display: grid; place-items: center; text-align: center; }
-.slide.countdown .num { font-size: 520px; font-weight: 900; color: var(--brand); line-height: 1; }
-.slide.countdown .label { font-size: 56px; color: var(--muted); font-weight: 800; margin-top: 24px; }
+/* 해설 카드 — 스크린샷의 파란 해설 상자 */
+.explain {
+  margin-top: 28px; font-size: 40px; line-height: 1.55; color: var(--ink);
+  background: var(--soft); border: 2px solid color-mix(in srgb, var(--brand) 22%, transparent);
+  border-left: 10px solid var(--brand); border-radius: 20px; padding: 30px 40px;
+}
+
+/* 카운트다운(생각할 시간) — 문제를 가리지 않게 우하단에 작게.
+   (실제 카운트다운 프레임은 #3 가 문제 슬라이드 위에 합성 — 값·위치를 여기에 맞춘다) */
+.slide.countdown { display: grid; place-items: end; text-align: right; }
+.slide.countdown .num {
+  font-size: 200px; font-weight: 900; color: var(--brand); line-height: 1;
+  background: color-mix(in srgb, var(--paper) 78%, transparent);
+  border-radius: 40px; padding: 8px 48px;
+}
+.slide.countdown .label { font-size: 40px; color: var(--muted); font-weight: 800; margin-top: 12px; }
 
 /* 자동 주입 푸터 */
 .s-foot {

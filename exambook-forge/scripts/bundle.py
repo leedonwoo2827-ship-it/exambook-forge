@@ -221,7 +221,7 @@ class Slide:
     fixed: list[str] = field(default_factory=list)   # 1페이지 상단 고정 HTML
     cont_idx: list[int] = field(default_factory=list)  # 그중 이어지는 페이지에도 반복할 것의 인덱스
     blocks: list[Block] = field(default_factory=list)
-    chip: str = ""                                   # 우상단 칩(출처 등)
+    chips: list[str] = field(default_factory=list)   # 좌상단 칩들(회차·번호 / 과목 / 난이도)
     narration: str = ""                              # 자막/표시용 원문
     speech: str = ""                                 # 낭독용(비면 blocks 에서 생성)
     shrink: int = 0                                  # 0=원본 · 1=dense · 2=dense2(축소)
@@ -330,10 +330,12 @@ def build_slides(lesson: dict, assets_dirs: list[Path] | None = None) -> list[Sl
                '<p class="lead">문제 풀이</p>'],
         narration=f"{round_label}. 문제 풀이를 시작합니다."))
 
+    cur_subject = ""                     # 현재 활성 과목(섹션 title) — 문항 칩에 붙인다
     for b in lesson.get("blocks", []):
         kind = b.get("kind")
         if kind == "section":
             sub, ttl = _strip_brand(b.get("subtitle", "")), _strip_brand(b.get("title", ""))
+            cur_subject = ttl or sub
             slides.append(Slide(
                 kind="section", heading=f"{sub} · {ttl}".strip(" ·"),
                 fixed=[f'<div class="s-head"><span class="tag">{html.escape(sub)}</span>'
@@ -346,6 +348,13 @@ def build_slides(lesson: dict, assets_dirs: list[Path] | None = None) -> list[Sl
         n = b.get("number")
         choices = b.get("choices", []) or []
         ai = b.get("answer_index")
+        # 좌상단 칩: [회차·N번] [과목] [난이도] — 과목·난이도는 있을 때만
+        diff = str(b.get("difficulty") or "").strip()
+        chips = [f"{round_label} · {n}번" if round_label else f"{n}번"]
+        if cur_subject:
+            chips.append(cur_subject)
+        if diff:
+            chips.append(f"난이도 {diff}" if not diff.startswith("난이도") else diff)
 
         # ── 문제 슬라이드: 발문 고정, 지문/SQL/표 → 블록, 보기는 통째로 한 덩어리
         # 발문 안에 SQL·표가 딸려오는 문항이 있다(13·25번 등) → 첫 문단만 발문으로 고정하고
@@ -376,9 +385,9 @@ def build_slides(lesson: dict, assets_dirs: list[Path] | None = None) -> list[Sl
 
         slides.append(Slide(
             kind="problem", number=n, heading=f"{n}번 문제",
-            chip=f"{round_label} {n}번",
-            fixed=[f'<div class="qnum">{n}번 문제</div>',
-                   f'<div class="qtext">{qtext_html}</div>'],
+            chips=chips,
+            # 발문만 카드 상단 고정 — "N번 문제"는 좌상단 칩이 대신한다(스크린샷과 일치)
+            fixed=[f'<div class="qtext">{qtext_html}</div>'],
             cont_idx=[],          # 이어지는 페이지엔 발문을 반복하지 않는다
                                   # (뚫린 카드 테두리가 "계속"을 보여주고, 그만큼 내용이 더 들어간다)
             blocks=q_blocks,
@@ -386,18 +395,21 @@ def build_slides(lesson: dict, assets_dirs: list[Path] | None = None) -> list[Sl
             # 낭독은 발문 문장만 — SQL 을 그대로 읽으면 못 알아듣는다.
             speech=to_speech(b.get("narration_question") or "") or qtext_speech))
 
-        # ── 해설 슬라이드: 정답 배지 + 정답 보기만 고정(오답 3개는 빼서 높이 확보), 해설은 분할
+        # ── 해설 슬라이드: 정답 배지 + 보기 4개 전부(정답 강조) 고정, 해설(짧음)은 흐름 블록
+        # 화면 해설은 짧게, 대본(낭독)은 길게 — 표시/낭독 분리는 speech 로만.
         ans = b.get("answer") or (circled(ai) if isinstance(ai, int) else "")
         fixed = [f'<div class="s-head"><span class="tag">정답 및 해설</span><h2>{n}번</h2></div>',
                  f'<div class="answer-badge">정답 {html.escape(str(ans))}</div>']
-        if isinstance(ai, int) and 0 <= ai < len(choices):
-            fixed.append(f'<ul class="choices">{_choice_li(ai, str(choices[ai]), True)}</ul>')
+        if choices:
+            correct = ai if isinstance(ai, int) and 0 <= ai < len(choices) else None
+            fixed.append(_choices_ul(choices, correct))
         e_blocks = _glue_labels([_blk(f'<div class="explain">{h_}</div>', sp)
                                  for h_, sp in md_blocks(b.get("explanation", ""))])
         slides.append(Slide(
             kind="answer", number=n, heading=f"{n}번 · 정답 {ans}",
-            # 해설은 카드가 없어 뚫을 테두리가 없다 → 정답 배지만 이어지는 페이지에 남긴다
-            fixed=fixed, cont_idx=[1] if len(fixed) > 1 else [],
+            chips=[f"{round_label} · {n}번" if round_label else f"{n}번"] + ([cur_subject] if cur_subject else []),
+            # 이어지는 해설 페이지엔 정답 배지만 남긴다(보기 4개를 매 장 반복하면 높이를 다 먹는다)
+            fixed=fixed, cont_idx=[1],
             blocks=e_blocks,
             narration=b.get("explanation", ""),
             speech=to_speech(b.get("narration_answer") or b.get("explanation_speech")
@@ -415,10 +427,11 @@ def _slide_html(s: Slide, si: int) -> str:
     if s.pages > 1:
         cls += " paged"
     parts = [f'  <section class="slide {cls}">']
-    if s.chip:
-        parts.append(f'    <span class="source-chip">{html.escape(s.chip)}</span>')
-    if s.pages > 1:
-        parts.append(f'    <span class="page-chip">{s.page} / {s.pages}</span>')
+    if s.chips:
+        chips = "".join(f'<span class="chip">{html.escape(c)}</span>' for c in s.chips)
+        parts.append(f'    <div class="chips">{chips}</div>')
+    # 페이지 카운터 칩은 넣지 않는다 — 칩과 겹치고, 이어짐은 카드 뚫린 테두리가 이미 보여준다.
+    # (회차·부분 진행은 하단 좌측 푸터 텍스트가 대신)
     body = [f'      <div data-fixed>{h_}</div>' for h_ in s.fixed]
     if s.blocks:
         flow = "".join(f'<div data-fid="{si}-{bi}"{" data-full" if b.full else ""}>{b.html}</div>'
@@ -456,7 +469,7 @@ def render_deck(lesson: dict, slides: list[Slide]) -> str:
         f'<title>{html.escape(title)}</title>\n'
         '<link rel="stylesheet" href="_deck.css"/>\n'
         f'<style>:root{{--brand:{pal[0]};--brand-2:{pal[1]};--soft:{pal[2]};--brand-ink:{pal[3]}}}\n'
-        '.page-chip{position:absolute;top:48px;left:48px;background:var(--soft);color:var(--brand-ink);'
+        '.page-chip{position:absolute;top:48px;right:48px;background:var(--soft);color:var(--brand-ink);'
         'border-radius:999px;padding:12px 28px;font-weight:800;font-size:30px}</style>\n'
         '</head><body>\n'
         f'<div id="deck" data-title="{html.escape(round_label)}">\n{body}\n</div>\n'
@@ -491,7 +504,7 @@ MEASURE_JS = r"""
     // (칩/푸터는 absolute 라 흐름에서 빠진다)
     const used = [...s.children]
       .filter(el => !el.classList.contains('s-foot') && !el.classList.contains('source-chip')
-                 && !el.classList.contains('page-chip'))
+                 && !el.classList.contains('page-chip') && !el.classList.contains('chips'))
       .reduce((a, el) => a + meas(el), 0);
     return {
       si, avail, availAll, used,
@@ -538,6 +551,47 @@ def measure_many(html_texts: list[str], workdir: Path) -> list[list[dict]] | Non
 def measure(html_text: str, workdir: Path) -> list[dict] | None:
     got = measure_many([html_text], workdir)
     return got[0] if got else None
+
+
+def capture_deck(deck_html: str, images_dir: Path, scenes: list[dict], workdir: Path) -> int:
+    """최종 deck 을 헤드리스 크로미움으로 열어 각 .slide 를 PNG(1920×1080)로 저장한다.
+
+    파일명은 capture=True 씬의 scene 인덱스(build_scenes 의 image 필드)와 1:1 로 맞춘다:
+    deck 의 k번째 .slide → k번째 capture 씬의 scene 값 → slide_{scene:02d}.png.
+    카운트다운/간격(capture=False) 씬은 #3 가 만든다. playwright 없으면 -1 반환.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return -1
+    cap_scenes = [s["scene"] for s in scenes if s.get("capture")]
+    images_dir.mkdir(parents=True, exist_ok=True)
+    for asset in ("_deck.css", "_deck.js"):
+        src = DECK_ASSETS / asset
+        if src.exists():
+            shutil.copy2(src, workdir / asset)
+    f = workdir / "_capture.html"
+    f.write_text(deck_html, encoding="utf-8")
+    n = 0
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        pg = browser.new_page(viewport={"width": 1920, "height": 1080}, device_scale_factor=1)
+        pg.goto(f.as_uri(), wait_until="networkidle")
+        try:
+            pg.evaluate("document.fonts && document.fonts.ready")
+        except Exception:
+            pass
+        # 화면 전용 내비/버튼은 캡처에 안 잡히게 제거
+        pg.evaluate("['#fs','.nav'].forEach(s=>document.querySelectorAll(s).forEach(e=>e.remove()))")
+        pg.wait_for_timeout(200)
+        els = pg.query_selector_all(".slide")
+        if len(els) != len(cap_scenes):
+            print(f"[warn] 캡처 슬라이드 {len(els)} != capture 씬 {len(cap_scenes)} — 순서가 어긋날 수 있음")
+        for el, scene in zip(els, cap_scenes):
+            el.screenshot(path=str(images_dir / f"slide_{scene:02d}.png"))
+            n += 1
+        browser.close()
+    return n
 
 
 SAFETY = 24.0   # 측정 오차·마진 겹침 여유(px)
@@ -596,7 +650,7 @@ def _paginate_one(s: Slide, m: dict) -> list[Slide]:
     for pi, blks in enumerate(pages):
         fixed = list(s.fixed) if pi == 0 else [s.fixed[i] for i in s.cont_idx if i < len(s.fixed)]
         p = Slide(kind=s.kind, heading=s.heading, number=s.number, classes=s.classes,
-                  fixed=fixed, cont_idx=s.cont_idx, blocks=blks, chip=s.chip,
+                  fixed=fixed, cont_idx=s.cont_idx, blocks=blks, chips=s.chips,
                   shrink=s.shrink, cols=s.cols, ch2=s.ch2,
                   page=pi + 1, pages=len(pages))
         if len(pages) > 1:
@@ -675,9 +729,9 @@ def paginate(lesson: dict, slides: list[Slide], workdir: Path,
     """
     warns: list[str] = []
     # 한 장에 담는 것이 최우선(퀴즈는 발문과 보기를 같이 봐야 한다). 덜 손대는 배치부터 시도한다:
-    # 원본 → 보기 2×2 → 축소 → 2단 → 3단. 다 안 되면 그때 페이지를 나눈다.
-    # (보기 2×2 는 글씨를 안 줄이고 세로 512px 를 절반으로 줄이므로 축소보다 먼저 쓴다)
-    TIERS = [(1, 0, False), (1, 0, True), (1, 1, True), (2, 0, True), (2, 1, True), (3, 1, True)]
+    # 보기 2×2(기본) → 축소 → 2단 → 3단. 다 안 되면 그때 페이지를 나눈다.
+    # (보기 2×2 는 글씨를 안 줄이고 세로를 절반으로 줄이므로 항상 기본으로 쓴다 — 사용자 요청)
+    TIERS = [(1, 0, True), (1, 1, True), (2, 0, True), (2, 1, True), (3, 1, True)]
     candidates = []
     for cols, shrink, ch2 in TIERS:
         for s in slides:
@@ -720,7 +774,7 @@ def paginate(lesson: dict, slides: list[Slide], workdir: Path,
                 moved = s.blocks.pop()               # 3차: 마지막 블록을 다음 페이지로
                 out.insert(i + 1, Slide(
                     kind=s.kind, heading=s.heading, number=s.number, classes=s.classes,
-                    fixed=list(s.fixed), cont_idx=s.cont_idx, blocks=[moved], chip=s.chip,
+                    fixed=list(s.fixed), cont_idx=s.cont_idx, blocks=[moved], chips=s.chips,
                     shrink=2, cols=s.cols, ch2=s.ch2, narration="", speech=moved.speech))
             elif not s.blocks[0].keep:
                 # 더 쪼갤 수도 줄일 수도 없는 단일 블록(긴 지문/표) — 마지막 수단으로 안내문 대체
@@ -864,7 +918,8 @@ def chunk_lesson(lesson: dict, per: int) -> list[tuple[str | None, dict]]:
 
 
 # ============================================================ core
-def write_bundle(lesson: dict, code: str, book: Path, do_paginate: bool) -> None:
+def write_bundle(lesson: dict, code: str, book: Path, do_paginate: bool,
+                 do_capture: bool = True) -> None:
     bundle = book / "05" / code
     for sub in BUNDLE_SUBDIRS:
         (bundle / sub).mkdir(parents=True, exist_ok=True)
@@ -909,13 +964,25 @@ def write_bundle(lesson: dict, code: str, book: Path, do_paginate: bool) -> None
     n_prob = len({s.number for s in slides if s.kind == "problem"})
     extra = sum(1 for s in slides if s.page > 1)
     assert n_cap == len(slides), f"내부 오류: 캡처 씬 {n_cap} != 슬라이드 {len(slides)}"
+
+    # 슬라이드 PNG 캡처 — 번들이 자체 완결되게(#3 는 카운트다운/간격·음성·모션만).
+    n_png = 0
+    if do_capture:
+        with tempfile.TemporaryDirectory(prefix="deck-capture-") as td:
+            n_png = capture_deck(deck_html, bundle / "images", scenes, Path(td))
+        if n_png < 0:
+            warns.append("playwright 가 없어 이미지 캡처를 건너뛰었습니다 "
+                         "(pip install playwright && python -m playwright install chromium)")
+            n_png = 0
+
     print(f"[{code}] 문항 {n_prob} · 슬라이드 {len(slides)}(분할로 늘어난 페이지 {extra}) "
-          f"· 씬 {len(scenes)}(캡처 {n_cap}) → 05/{code}/")
+          f"· 씬 {len(scenes)}(캡처 {n_cap}) · 이미지 {n_png}장 → 05/{code}/")
     for w in warns:
         print(f"  [warn] {w}")
 
 
-def process_lesson(lesson_path: Path, book: Path, do_paginate: bool, chunk: int = 0) -> None:
+def process_lesson(lesson_path: Path, book: Path, do_paginate: bool, chunk: int = 0,
+                   do_capture: bool = True) -> None:
     lesson = json.loads(lesson_path.read_text(encoding="utf-8"))
     stem = lesson_path.stem
     code = stem[len("lesson_"):] if stem.startswith("lesson_") else stem
@@ -923,7 +990,7 @@ def process_lesson(lesson_path: Path, book: Path, do_paginate: bool, chunk: int 
     if len(parts) > 1:
         print(f"[{code}] {chunk}문항씩 {len(parts)}편으로 분할")
     for suffix, sub in parts:
-        write_bundle(sub, code if suffix is None else f"{code}{suffix}", book, do_paginate)
+        write_bundle(sub, code if suffix is None else f"{code}{suffix}", book, do_paginate, do_capture)
 
 
 def main() -> int:
@@ -935,6 +1002,8 @@ def main() -> int:
                     help="문항 N개씩 여러 편으로 분할(예: 10 → 회차당 5편 05/mNN-1..). 0=분할 안 함")
     ap.add_argument("--no-paginate", action="store_true",
                     help="높이 측정/페이지 분할 생략(빠른 확인용 — 잘릴 수 있음)")
+    ap.add_argument("--no-capture", action="store_true",
+                    help="슬라이드 PNG 캡처 생략(빠른 확인용 — images/ 안 채움)")
     ap.add_argument("--force", action="store_true", help="(호환용, 무시됨 — deck 는 항상 재생성)")
     args = ap.parse_args()
 
@@ -952,7 +1021,7 @@ def main() -> int:
         return 2
 
     for f in files:
-        process_lesson(f, book, not args.no_paginate, args.chunk)
+        process_lesson(f, book, not args.no_paginate, args.chunk, not args.no_capture)
     print("완료.")
     return 0
 

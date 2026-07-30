@@ -10,8 +10,8 @@
 | # | 레포 | 읽기 | 쓰기 | 역할 |
 |---|---|---|---|---|
 | #1 | `260723-ocr` | 원본 이미지 `00/` | `01/` | OCR → 문항별 구조화 MD |
-| #2 | `260724-munje-sumary` / **exambook-forge** | `01/` | `02/ 03/ 04/` + `05/<회차>/source·script·review.json` | 집필: 문제·요약·영상대본·**deck.html 슬라이드**·리모션 대본 |
-| #3 | `260724-chodangi-mp4` / **chodangi-mp4-forge** | `04/` + `05/<회차>/source` | `05/<회차>/images·audio·subtitles·draft` + review.json 갱신 | 렌더: deck 캡처 + Supertonic3 자막/음성 + ffmpeg → **일반영상** |
+| #2 | `260724-munje-sumary` / **exambook-forge** | `01/` | `02/ 03/ 04/` + `05/<회차>/source·**images**·script·review.json` | 집필: 문제·요약·영상대본·**deck.html 슬라이드** + **슬라이드 PNG 캡처(images/)**·리모션 대본 |
+| #3 | `260724-chodangi-mp4` / **chodangi-mp4-forge** | `04/` + `05/<회차>/source·**images**` | `05/<회차>/audio·subtitles·draft` + review.json 갱신 | 렌더: **#2 캡처 이미지** + Supertonic3 자막/음성 + ffmpeg → **일반영상** (카운트다운/간격 프레임은 #3 생성) |
 | — | 리모션 (클로드 데스크탑) | `05/<회차>/script·source·audio` | `05/<회차>/draft/*.motion.mp4` + review.json 갱신 | 키네틱(모션) 영상 |
 
 ## 책 루트 스테이지 폴더
@@ -37,7 +37,7 @@ ocr-output-*/
                 _deck.css _deck.js ← 공유 덱 자산                            [#2]
                 slides.json        ← 덱 슬라이드 구조/캡처 매니페스트         [#3]
                 mNN.timing.json    ← 씬별 오디오 길이/큐(전역)               [#3]
-  images/       slide_00.png …     ← deck.html 캡처(1920×1080, 씬 순서)      [#3]
+  images/       slide_00.png …     ← deck.html 캡처(1920×1080, 씬 순서)      [#2]
   audio/        scene_00.wav …     ← Supertonic3 TTS(씬별)                   [#3]
   subtitles/    subtitles.srt      ← 병합 자막(전역)                         [#3]
   script/       mNN_script.json    ← 리모션 _series 입력                     [#2]
@@ -109,7 +109,7 @@ pressplay `output/assets/js/media-tabs.js`가 소비하던 형태 그대로. 모
       "heading": "1과목 · 데이터 모델링의 이해",
       "narration": "자막 원문 표기",
       "narration_text": "발음 표기",       // 없으면 narration을 읽음
-      "image": "slide_00.png",            // images/ 기준(캡처 후 #3가 생성)
+      "image": "slide_00.png",            // images/ 기준(#2 bundle.py가 캡처 생성)
       "audio": "scene_00.wav",            // audio/ 기준(#3가 생성)
       "durSec": 0,                        // #3가 확정(리모션은 이 값으로 타임라인)
       "startSec": 0
@@ -129,6 +129,6 @@ pressplay `output/assets/js/media-tabs.js`가 소비하던 형태 그대로. 모
 ## end-to-end 흐름 (일반영상 → 리모션)
 
 1. **#1** OCR → `01/`.
-2. **#2** `build.py` → `02/ 03/ 04/`. `bundle.py` → `05/mNN/source/{deck.html, lesson 복사, _deck.*}` + `script/mNN_script.json` + `review.json` 스켈레톤. (deck.html 집필은 `build-deck` 스킬.)
-3. **#3** `render.bat mNN` → deck.html 캡처(`images/slide_*.png`) + Supertonic3(`audio/scene_*.wav`, `subtitles/subtitles.srt`) + ffmpeg → `draft/mNN.static.mp4` + `mNN.ko.vtt`; `review.json`·`slides.json`·`mNN.timing.json` 갱신. **여기서 자막/음성 최종 OK.**
+2. **#2** `build.py` → `02/ 03/ 04/`. `bundle.py` → `05/mNN/source/{deck.html, lesson 복사, _deck.*}` + **`images/slide_*.png`(헤드리스 크로미움 캡처)** + `script/mNN_script.json` + `review.json` 스켈레톤. (deck.html 집필은 `build-deck` 스킬. 캡처엔 playwright 필요 — 없으면 자동 스킵.)
+3. **#3** `render.bat mNN` → **#2가 만든 `images/slide_*.png`를 그대로 사용**(캡처 안 함; 카운트다운/간격 프레임만 생성) + Supertonic3(`audio/scene_*.wav`, `subtitles/subtitles.srt`) + ffmpeg → `draft/mNN.static.mp4` + `mNN.ko.vtt`; `review.json`·`slides.json`·`mNN.timing.json` 갱신. **여기서 자막/음성 최종 OK.**
 4. **리모션(클로드 데스크탑)** `script/mNN_script.json` + `source/`·`images/`·`audio/` → `draft/mNN.motion.mp4`; `review.json.motionVideo` 갱신.
