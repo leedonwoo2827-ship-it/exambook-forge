@@ -171,18 +171,16 @@ th { background: var(--soft); color: var(--brand-ink); font-weight: 800; }
   background: var(--soft); color: var(--brand-ink); border-radius: 999px;
   padding: 12px 28px; font-weight: 800; font-size: 30px;
 }
-/* 좌상단 다중 칩(회차·번호 / 과목 / 난이도). absolute 라 흐름·페이지분할에 영향 없음 */
+/* 회차·번호 / 과목 / 난이도 — 상단이 아니라 '맨 밑 좌측 텍스트'로(캡션). absolute 라 흐름·분할 영향 없음.
+   푸터 밑줄(.s-foot border-top)과 같은 baseline 에 놓여 좌측 캡션 · 우측 페이지수로 읽힌다. */
 .chips {
-  position: absolute; top: 40px; left: var(--pad);
-  display: flex; flex-wrap: wrap; gap: 14px; z-index: 5;
+  position: absolute; left: var(--pad); bottom: 44px; z-index: 6;
+  display: flex; align-items: baseline; gap: 0;
+  color: var(--muted); font-size: 28px; font-weight: 700; line-height: 1; padding-top: 20px;
 }
-.chips .chip {
-  display: inline-block; padding: 10px 26px; border-radius: 999px;
-  background: var(--soft); color: var(--brand-ink); font-weight: 800; font-size: 28px;
-  border: 2px solid color-mix(in srgb, var(--brand) 22%, transparent);
-}
-/* 두 번째 칩(과목)부터는 옅게 — 회차·번호를 강조 */
-.chips .chip:not(:first-child) { background: #fff; color: var(--muted); }
+.chips .chip { background: none; border: none; padding: 0; color: var(--muted); font-weight: 700; }
+.chips .chip:first-child { color: var(--brand-ink); font-weight: 800; }   /* 회차·번호 강조 */
+.chips .chip:not(:first-child)::before { content: "·"; margin: 0 14px; color: var(--muted); }
 
 /* 해설 카드 — 스크린샷의 파란 해설 상자 */
 .explain {
@@ -208,6 +206,9 @@ th { background: var(--soft); color: var(--brand-ink); font-weight: 800; }
   color: var(--muted); font-size: 28px; border-top: 2px solid var(--line); padding-top: 20px;
 }
 .s-foot .fl b { color: var(--brand-ink); }
+/* 칩(하단 좌측 캡션)이 있는 슬라이드는 푸터 좌측 제목을 숨겨 겹치지 않게 하고 페이지수만 우측에 */
+.slide:has(.chips) .s-foot .fl { display: none; }
+.slide:has(.chips) .s-foot .pg { margin-left: auto; }
 
 /* ── 본문 마크다운(불릿·표·코드) — bundle.py 가 지문/해설 안에 넣는 블록 ── */
 .passage > *:first-child, .explain > *:first-child { margin-top: 0; }
