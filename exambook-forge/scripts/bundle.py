@@ -106,6 +106,11 @@ def _md_inline(s: str) -> str:
     s = html.escape(_IMG_MD.sub("", str(s or "")))
     s = _BOLD.sub(r"<strong>\1</strong>", s)
     s = _CODE.sub(r"<code>\1</code>", s)
+    # 집필이 마크다운 대신 HTML 볼드/이탤릭(<b>·<strong>·<i>·<em>)을 쓴 경우도 렌더한다.
+    # (html.escape 로 &lt;b&gt; 가 된 것을 이 안전한 태그들만 골라 복원)
+    for tag in ("b", "strong", "i", "em"):
+        out = "strong" if tag in ("b", "strong") else "em"
+        s = s.replace(f"&lt;{tag}&gt;", f"<{out}>").replace(f"&lt;/{tag}&gt;", f"</{out}>")
     return s.strip()
 
 
