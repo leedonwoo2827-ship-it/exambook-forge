@@ -11,8 +11,8 @@ exam-forge validate helper.
     question, choices, answer_index, explanation)
   - choices 정확히 4개, answer_index 0~3
   - question_no 1..N 연속·유일
-  - subject_no ∈ {1,2}, difficulty ∈ {상,중,하}, tags 1개 이상
-  - 과목 비율(1과목 10 / 2과목 40) 및 난이도/정답 분포 리포트(경고 수준)
+  - subject_no 1..K 연속(정수), difficulty ∈ {상,중,하}, tags 1개 이상
+  - 과목 비율(SQLD 10/40 등) 및 난이도/정답 분포 리포트(경고 수준)
 
 사용 예:
   python validate.py --rounds-dir D:/00work/ocr-output-260723/_rounds
@@ -76,8 +76,9 @@ def check_round(path: Path) -> tuple[list[str], list[str]]:
             errors.append(f"{tag}: difficulty 잘못됨 ({q.get('difficulty')})")
         else:
             diffc[q["difficulty"]] += 1
-        if q.get("subject_no") not in (1, 2):
-            errors.append(f"{tag}: subject_no 잘못됨 ({q.get('subject_no')})")
+        sn = q.get("subject_no")
+        if not isinstance(sn, int) or sn < 1:
+            errors.append(f"{tag}: subject_no 잘못됨 ({sn}) — 1 이상의 정수여야 함")
         else:
             subjc[q.get("subject", "?")] += 1
         if not q.get("tags"):
@@ -90,6 +91,11 @@ def check_round(path: Path) -> tuple[list[str], list[str]]:
     expected = list(range(1, n + 1))
     if sorted(x for x in nos if isinstance(x, int)) != expected:
         errors.append(f"{code}: question_no가 1..{n} 연속·유일이 아님 ({sorted(nos)})")
+
+    # subject_no 는 1..K 연속이어야 한다(웹 성적표·이론 링크의 축 — exam-web-contract.md §1)
+    sns = sorted({q["subject_no"] for q in qs if isinstance(q.get("subject_no"), int)})
+    if sns and sns != list(range(1, len(sns) + 1)):
+        errors.append(f"{code}: subject_no가 1..{len(sns)} 연속이 아님 ({sns})")
 
     # 분포 경고(품질 가이드; 실패 아님)
     s1 = subjc.get("데이터 모델링의 이해", 0)

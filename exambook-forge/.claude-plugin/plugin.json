@@ -1,6 +1,6 @@
 {
   "name": "exambook-forge",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "기출 1권(OCR 구조화 MD) → 자사 N회차 모의고사 재집필 + 문제 전용 영상 lesson JSON + 요약노트(MD/HTML) + pressplay식 밝은 deck.html 슬라이드/05 번들(리모션 _series·review.json) 생성 파이프라인. 저작권 안전 재집필(개념·난이도 유지, 표면 전면 재작성, 출제 순서 변경), SVG 도형화, chodangi-mp4(일반영상)·리모션(키네틱) 연동.",
   "author": {
     "name": "leedonwoo2827-ship-it"

@@ -18,13 +18,17 @@ metadata:
 
 ## 입력
 - 책 루트: `ocr-output-*` (기본: 이 작업공간 상위의 `ocr-output-260723`). `01/`에 기출 문항 MD.
-- 회차 수 `rounds`(기본 3), 과목/테마(기본 SQLD/sqld), 번들 분할 `chunk`(기본 10문항/편).
+- 회차 수 `rounds`(기본 3), 과목/테마(기본 SQLD/sqld — 빅분기 필기면 4과목·`theme=teal`), 번들 분할 `chunk`(기본 10문항/편).
+- **웹-only 품목(예: 빅분기 필기 `bdae-w`)**: 04/05(영상)는 선택이다. `exam-web-contract.md` §3대로 문제(02)·요약(03)만
+  만들어도 웹의 문제풀이·성적표·이론·게시판이 동작한다. 영상까지 원하면 6~8단계도 그대로 실행.
 
 ## 절차
 1. **책 루트 확인 + 권한 1회 확인.** 경로 확정 후 `02/`·`03/`·`04/`·`05/`에 쓸 것임을 **한 번** 알리고
    동의받는다(없으면 자동 생성). 이후 단계에서 다시 묻지 않는다.
 2. **입력 분석.** `01/`의 **모든 기출 회차(01-*, 02-*, …)** 문항 전체를 개념 풀로 삼고
-   `${CLAUDE_PLUGIN_ROOT}/references/sqld-syllabus.md`와 대조해 개념·난이도·과목 비율(10:40)을 정한다.
+   **대상 시험의 syllabus**와 대조해 개념·난이도·과목 배분을 정한다
+   (SQLD → `sqld-syllabus.md` 2과목 10:40 · 빅데이터분석기사 필기 → `bdae-written-syllabus.md` 4과목 20씩).
+   웹 품목이면 `${CLAUDE_PLUGIN_ROOT}/references/exam-web-contract.md`를 반드시 지킨다(subject_no·question_no 연속).
 3. **회차 번호 결정(연속).** `<book>/_rounds/`의 기존 `mNN.json`을 확인해 **다음 번호부터** 이어서
    `rounds`개를 만든다(예: m01~m03 있으면 → m04~m06). 기존 회차는 덮어쓰지 않는다.
 4. **문제 집필** → `author-questions` 스킬. 회차별 `<book>/_rounds/mNN.json` 집필
@@ -48,6 +52,7 @@ metadata:
 
 ## 참고
 - 집필 규칙: `${CLAUDE_PLUGIN_ROOT}/references/authoring-rules.md`
-- 개념 풀: `${CLAUDE_PLUGIN_ROOT}/references/sqld-syllabus.md`
+- 개념 풀(시험별): `sqld-syllabus.md`(SQLD) · `bdae-written-syllabus.md`(빅분기 필기)
+- **웹 소비 계약: `${CLAUDE_PLUGIN_ROOT}/references/exam-web-contract.md`** (02/·03/ 필수 규약)
 - 데이터 스키마: `${CLAUDE_PLUGIN_ROOT}/references/round-data-schema.md`
 - MD/lesson/요약/SVG 포맷: 각 `references/*.md`

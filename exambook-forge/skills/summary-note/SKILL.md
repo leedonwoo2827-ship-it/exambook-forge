@@ -15,7 +15,9 @@ metadata:
 ## 입력
 - `01/`의 **모든 기출 회차(01-*, 02-*, …)** 해설 + `02/`의 **모든 자사 회차(m01-*, m02-*, …)** 해설.
 - 포맷 규약 `${CLAUDE_PLUGIN_ROOT}/references/summary-format.md`, SVG 규약 `svg-conventions.md`,
-  개념 순서 `sqld-syllabus.md`.
+  개념 순서(시험별 syllabus): `sqld-syllabus.md` · `bdae-written-syllabus.md`.
+- **웹 소비 계약 `${CLAUDE_PLUGIN_ROOT}/references/exam-web-contract.md` §2** — 웹이 `summary_*.html`을
+  shadow DOM에 굽는다. 아래 규칙을 반드시 지킨다(어기면 이론 탭이 비거나 스타일이 사라짐).
 
 ## 절차
 0. **백업(기존 03 이동).** `03/`에 기존 `summary_*`·`assets/`가 있으면 통째로
@@ -33,6 +35,13 @@ metadata:
 5. **출처 표기.** 각 소절 끝 `> 출처: {id}, {id} ...` (자사 문항 있으면 `· 관련 자사: {id}`).
 6. **출력.** `03/summary_{과목}.html`(기본, 자기완결·인라인CSS·인라인SVG) + `.md`(소스).
    마크업은 단순 시맨틱(h1~h4/table/ul/figure)으로 hwpx 변환 친화.
+   **웹 계약(§2) 필수:**
+   - 파일명 **ASCII 권장**(예 `summary_planning/explore/modeling/interpret.html`). 과목당 **1파일**.
+   - **첫 줄 제목은 `<h1>N과목 · 과목명</h1>`** — 이 `N`이 `02/`의 `subject_no`와 **같아야** 성적표 링크가 붙는다
+     (빅분기: 1 분석 기획 · 2 탐색 · 3 모델링 · 4 결과 해석). 안 맞으면 에러 없이 순서가 밀린다.
+   - **self-contained**: CSS는 `<style>` 안에만. `<link>`·`<script>`(인라인·외부 모두)·웹폰트·CDN·`fetch()` **금지**.
+     인터랙션은 CSS만(`<details>`·`:hover`·`:target`). 그림은 `03/assets/`에 두고 상대경로 `assets/x.svg`.
+   - **과목당 ≤ 40KB**(웹 첫 로드에 통째로 내려감). 넘치면 표·요점 위주로 압축.
 
 ## 산출
 - `03/summary_데이터모델링.html` / `.md`
