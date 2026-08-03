@@ -129,6 +129,9 @@ pressplay `output/assets/js/media-tabs.js`가 소비하던 형태 그대로. 모
 ## end-to-end 흐름 (일반영상 → 리모션)
 
 1. **#1** OCR → `01/`.
-2. **#2** `build.py` → `02/ 03/ 04/`. `bundle.py` → `05/mNN/source/{deck.html, lesson 복사, _deck.*}` + **`images/slide_*.png`(헤드리스 크로미움 캡처)** + `script/mNN_script.json` + `review.json` 스켈레톤. (deck.html 집필은 `build-deck` 스킬. 캡처엔 playwright 필요 — 없으면 자동 스킵.)
+2. **#2** `build.py` → `02/ 03/ 04/`. `bundle.py` → `05/mNN/source/{deck.html, lesson 복사, _deck.*}` + **`images/slide_*.png`(헤드리스 크로미움 캡처)** + `script/mNN_script.json` + `review.json` 스켈레톤. (deck.html 집필은 `build-deck` 스킬. **페이지 분할·캡처에 playwright 가 필수다 —
+   없으면 `bundle.py` 가 멈춘다.** 예전에는 경고만 남기고 넘어갔는데, 그러면 한 슬라이드에
+   내용을 전부 밀어 넣어 보기 박스가 붙고 아래가 잘린 채로 영상까지 나갔다.
+   정말 건너뛰려면 `--no-paginate` / `--no-capture` 로 명시한다.)
 3. **#3** `render.bat mNN` → **#2가 만든 `images/slide_*.png`를 그대로 사용**(캡처 안 함; 카운트다운/간격 프레임만 생성) + Supertonic3(`audio/scene_*.wav`, `subtitles/subtitles.srt`) + ffmpeg → `draft/mNN.static.mp4` + `mNN.ko.vtt`; `review.json`·`slides.json`·`mNN.timing.json` 갱신. **여기서 자막/음성 최종 OK.**
 4. **리모션(클로드 데스크탑)** `script/mNN_script.json` + `source/`·`images/`·`audio/` → `draft/mNN.motion.mp4`; `review.json.motionVideo` 갱신.

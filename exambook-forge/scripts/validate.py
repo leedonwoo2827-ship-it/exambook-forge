@@ -102,8 +102,16 @@ def check_round(path: Path) -> tuple[list[str], list[str]]:
     s2 = subjc.get("SQL 기본 및 활용", 0)
     if n == 50 and (s1, s2) != (10, 40):
         warns.append(f"{code}: 과목 비율 {s1}:{s2} (권장 10:40)")
-    if any(v > 17 for v in ans.values()) or any(v < 6 for v in ans.values() if ans):
-        warns.append(f"{code}: 정답 분포 편중 {dict(ans)} (각 8~17 권장)")
+    # ★ 정답 분포 기준을 **문항 수에 비례**해 잡는다.
+    #
+    #   예전에는 8~17 이 하드코딩이었다. 50문항(각 12.5 기대)용 값이라 80문항 책에서는
+    #   각 20 이 기대인데도 17 을 넘어 **항상** 경고가 떴다. 항상 뜨는 경고는 읽지 않게
+    #   되고, 그러면 정말 편중된 회차도 같이 지나간다 — 경고가 무의미해지는 쪽이 문제다.
+    #   기대치 n/4 에 ±36% 를 둔다(50문항이면 8~17 로 기존과 같고, 80문항이면 13~27).
+    if ans:
+        lo, hi = round(n / 4 * 0.64), round(n / 4 * 1.36)
+        if any(v > hi or v < lo for v in ans.values()):
+            warns.append(f"{code}: 정답 분포 편중 {dict(ans)} (각 {lo}~{hi} 권장)")
     print(f"[{code}] {n}문항 · 난이도 {dict(diffc)} · 정답 {dict(ans)} · 과목 {dict(subjc)}")
     return errors, warns
 

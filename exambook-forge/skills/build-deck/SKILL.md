@@ -24,14 +24,23 @@ metadata:
    → `05/m01-1..m01-5/{source,images,audio,subtitles,script,draft}` 생성,
      `source/`에 **페이지 분할이 끝난 `deck.html`** + `lesson_*.json` 복사 + `_deck.css`/`_deck.js`,
      `script/<회차>_script.json`(리모션 _series) + `review.json`.
-   - 첫 실행 전 1회: `pip install playwright && python -m playwright install chromium`
-     (없으면 분할을 건너뛰고 경고 — 슬라이드가 잘린다).
+   - **첫 실행 전 1회 필수**: `pip install playwright && python -m playwright install chromium`
+     없으면 `bundle.py` 가 **멈춘다**(경고가 아니라 중단). 예전에는 분할을 건너뛰고
+     경고만 남겼는데, 그러면 한 슬라이드에 내용을 전부 밀어 넣어 **보기 박스가 붙고
+     아래가 잘린 채로** deck·PNG·영상까지 나갔다. 경고는 로그에 묻히고, 잘린 것은
+     영상을 보고 나서야 알게 되어 그 회차를 다시 만들어야 했다.
+     분할·캡처를 정말 건너뛰려면 `--no-paginate` / `--no-capture` 로 명시한다.
+   - 슬라이드 PNG 는 **2배 해상도(3840×2160)로 찍어** 1080p 로 내려보낸다.
+     1배로 찍으면 h.264 압축에서 글자가 뭉갠다.
 2. **결과 확인**: `05/<회차>/source/deck.html` 을 브라우저로 열어 넘겨 본다.
    실행 로그의 `[warn]` 이 없으면 잘린 슬라이드가 없다는 뜻.
    `[warn] 슬라이드 N 이 …px 넘칩니다` 가 뜨면 **lesson 의 해당 지문/해설을 줄여야 한다**
    (분할·축소로도 안 들어가는 분량).
 3. **핸드오프**:
-   - 일반영상: #3에서 `render.bat m01-1` → deck 캡처 + Supertonic3 + ffmpeg → `05/m01-1/draft/m01-1.static.mp4`.
+   - 일반영상: **XAM LOCAL(#4) 의 `#/video` 화면**에서 렌더 → `05/m01-1/draft/m01-1.static.mp4`.
+     (2026-08-03 부터 #3 렌더 엔진이 XAM LOCAL 안 `vendor/chodangi/` 로 들어왔다.
+      `render.bat` 은 쓰지 않는다 — BOOK 경로가 하드코딩돼 있고 별도 저장소도 없어졌다.
+      자막 시간축 수정 4건도 그 소스에 반영돼 있다.)
    - 리모션: 클로드 데스크탑에서 `05/m01-1/script/m01-1_script.json`으로 `draft/*.motion.mp4`.
 
 ## bundle.py 가 자동으로 하는 것

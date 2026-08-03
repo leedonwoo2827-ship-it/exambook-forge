@@ -580,7 +580,13 @@ def capture_deck(deck_html: str, images_dir: Path, scenes: list[dict], workdir: 
     n = 0
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        pg = browser.new_page(viewport={"width": 1920, "height": 1080}, device_scale_factor=1)
+        # ★ device_scale_factor=2 — 3840×2160 으로 찍어 1080p 로 내려보낸다(슈퍼샘플링).
+        #
+        #   1배로 찍으면 슬라이드 글자가 h.264 압축을 타면서 뭉갠다. 영상이 1080p 라
+        #   "1920×1080 으로 찍으면 딱 맞다" 고 생각하기 쉽지만, 인코딩은 픽셀을 그대로
+        #   보존하지 않는다. 2배로 찍고 ffmpeg 가 줄이면 글자 경계가 살아남는다.
+        #   측정(measure_many)은 1배로 둔다 — 거긴 높이만 재므로 2배는 낭비다.
+        pg = browser.new_page(viewport={"width": 1920, "height": 1080}, device_scale_factor=2)
         pg.goto(f.as_uri(), wait_until="networkidle")
         try:
             pg.evaluate("document.fonts && document.fonts.ready")
@@ -747,8 +753,18 @@ def paginate(lesson: dict, slides: list[Slide], workdir: Path,
 
     measured = measure_many(candidates, workdir)
     if measured is None:
-        return slides, ["playwright 가 없어 페이지 분할을 건너뛰었습니다 "
-                        "(pip install playwright && python -m playwright install chromium)"]
+        # ★ 조용히 넘어가지 않는다 — 여기서 멈춘다.
+        #
+        #   예전에는 경고만 남기고 분할 없이 진행했다. 그러면 한 슬라이드에 내용을 전부
+        #   밀어 넣어 **보기 박스가 서로 붙고 아래가 잘린 채로** deck·PNG·영상이 만들어진다.
+        #   경고는 로그 수십 줄에 묻히고, 잘린 걸 사람이 알아차리는 건 영상을 보고 나서다.
+        #   그때는 이미 그 회차 전체를 다시 만들어야 한다.
+        #   분할을 정말 건너뛰려면 `--no-paginate` 로 **명시**한다.
+        raise SystemExit(
+            "[error] playwright 가 없어 슬라이드 페이지 분할을 할 수 없습니다.\n"
+            "        그대로 진행하면 보기 박스가 붙고 내용이 잘린 슬라이드가 나옵니다.\n"
+            "          pip install playwright && python -m playwright install chromium\n"
+            "        분할 없이 만들려면 --no-paginate 를 명시하세요.")
     m = measured[0]
 
     fit_at: dict[int, tuple[int, int, bool]] = {}
@@ -976,9 +992,12 @@ def write_bundle(lesson: dict, code: str, book: Path, do_paginate: bool,
         with tempfile.TemporaryDirectory(prefix="deck-capture-") as td:
             n_png = capture_deck(deck_html, bundle / "images", scenes, Path(td))
         if n_png < 0:
-            warns.append("playwright 가 없어 이미지 캡처를 건너뛰었습니다 "
-                         "(pip install playwright && python -m playwright install chromium)")
-            n_png = 0
+            # ★ 여기서도 멈춘다. 이미지가 없는 05 번들은 #3 가 렌더할 수 없다(또는
+            #   deck 을 다시 캡처해야 한다). "번들은 자체 완결" 이라는 규약이 깨진다.
+            raise SystemExit(
+                "[error] playwright 가 없어 슬라이드 PNG 를 캡처할 수 없습니다.\n"
+                "          pip install playwright && python -m playwright install chromium\n"
+                "        이미지 없이 만들려면 --no-capture 를 명시하세요.")
 
     print(f"[{code}] 문항 {n_prob} · 슬라이드 {len(slides)}(분할로 늘어난 페이지 {extra}) "
           f"· 씬 {len(scenes)}(캡처 {n_cap}) · 이미지 {n_png}장 → 05/{code}/")
